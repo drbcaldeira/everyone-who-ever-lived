@@ -61,6 +61,8 @@ p { margin: 0 0 0.75rem; }
 .masthead__inner { max-width: var(--measure); margin: 0 auto; padding: 2.4rem 1.25rem 1.6rem; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 .brand__eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
 .brand__title { font-family: var(--font-display); font-weight: 600; font-size: 50px; line-height: 1.02; letter-spacing: 0.01em; margin: 0; color: var(--fg); text-wrap: balance; }
+.brand__home { color: inherit; text-decoration: none; }
+.brand__home:hover { color: var(--accent); }
 .brand__title::before, .brand__title::after { content: '\2726'; color: var(--accent); font-size: 0.42em; vertical-align: middle; margin: 0 0.5em; }
 .brand__sub { font-family: var(--font-display); font-size: 20px; color: var(--fg-2); font-style: italic; margin: 0; }
 .chip { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-2); background: transparent; border: 1px solid var(--border-strong); border-radius: 999px; padding: 6px 12px; cursor: pointer; margin-top: 0.4rem; }
@@ -125,6 +127,7 @@ p { margin: 0 0 0.75rem; }
 
 /* ============ the life ============ */
 .life { padding: 1.5rem 0 2rem; }
+.life__nav { display: flex; margin-bottom: 1rem; }
 .life__head { text-align: center; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 .seal { width: 112px; height: 112px; }
 .seal svg { width: 100%; height: 100%; display: block; }
@@ -277,7 +280,7 @@ p { margin: 0 0 0.75rem; }
 <header class="masthead">
   <div class="masthead__inner">
     <span class="brand__eyebrow">One life at random from everyone who was ever born</span>
-    <h1 class="brand__title">Everyone Who Ever Lived</h1>
+    <h1 class="brand__title"><a class="brand__home" id="homeLink" href="./" title="Back to the start">Everyone Who Ever Lived</a></h1>
     <p class="brand__sub" id="brandSub"></p>
     <button class="chip" id="tallyChip" type="button" title="Lives drawn in this browser. Click to reset." aria-label="Session tally"></button>
   </div>
@@ -318,6 +321,7 @@ p { margin: 0 0 0.75rem; }
   </section>
 
   <article class="life" id="life" hidden aria-live="polite">
+    <nav class="life__nav"><button class="btn btn--small" id="homeBtn" type="button">&larr; Home</button></nav>
     <header class="life__head">
       <div class="seal" id="seal" aria-hidden="true"></div>
       <span class="life__eyebrow" id="lifeEyebrow"></span>
@@ -2084,6 +2088,12 @@ function renderLife(L, animate) {
   recordTally(L);
   if (animate) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+/* Back to the start: drops the life from the URL and shows the draw modes again. */
+function goHome() {
+  if (state.animating && revealFinish) revealFinish();
+  if (location.hash) history.pushState(null, '', location.pathname + location.search);
+  state.life = null; showHero(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 function showHero() {
   $('life').hidden = true; $('reveal').hidden = true; $('hero').hidden = false;
   document.title = 'Everyone Who Ever Lived';
@@ -2307,7 +2317,9 @@ function init() {
   $('drawBtn').addEventListener('click', drawNew);
   $('againBtn').addEventListener('click', drawNew);
   $('skipBtn').addEventListener('click', () => { if (revealFinish) revealFinish(); });
-  $('modeBtn').addEventListener('click', () => { history.pushState(null, '', location.pathname + location.search); state.life = null; showHero(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  $('modeBtn').addEventListener('click', goHome);
+  $('homeBtn').addEventListener('click', goHome);
+  $('homeLink').addEventListener('click', e => { if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); goHome(); });
   $('linkBtn').addEventListener('click', () => copyText(location.href, 'Link copied. The same link always gives the same life.'));
   $('copyBtn').addEventListener('click', () => { if (state.life) copyText(summaryText(state.life, location.href), 'Copied as text.'); });
   $('certBtn').addEventListener('click', showCertificate);
