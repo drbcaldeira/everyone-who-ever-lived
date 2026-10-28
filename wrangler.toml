@@ -1,0 +1,10 @@
+# Cloudflare Pages project everyone-who-ever-lived (classic Pages, not Workers). The page is static (./site);
+# this file only binds the counter function (functions/api/count.js) to the D1 database ewel-counter.
+name = "everyone-who-ever-lived"
+pages_build_output_dir = "./site"
+compatibility_date = "2026-10-19"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ewel-counter"
+database_id = "6a11acc9-ddd0-4093-b7fa-4ceaf32854c7"
