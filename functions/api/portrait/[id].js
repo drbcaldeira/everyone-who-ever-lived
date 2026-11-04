@@ -27,30 +27,42 @@ export async function onRequestGet({ params, env, waitUntil }) {
   const key = "v" + PORTRAIT_VERSION + "/" + lifeId(L);
 
   const kept = await env.PORTRAITS.getWithMetadata(key, { type: "arrayBuffer" });
-  if (kept.value) return new Response(kept.value, { headers: { ...KEEP, "Content-Type": (kept.metadata && kept.metadata.type) || "image/jpeg", "X-Portrait": "kept" } });
+  if (kept.value) {
+    const m = kept.metadata || {};
+    return new Response(kept.value, { headers: { ...KEEP, "Content-Type": m.type || "image/jpeg", "X-Portrait": "kept", "X-Portrait-Soft": m.soft ? "1" : "0" } });
+  }
 
   const day = new Date().toISOString().slice(0, 10);
   const row = await env.DB.prepare("INSERT INTO portrait_days (day, n) VALUES (?1, 1) ON CONFLICT(day) DO UPDATE SET n = n + 1 RETURNING n").bind(day).first();
   if (row && row.n > DAILY_CAP) return fail(429, "daily limit reached");
 
-  let out;
+  // Workers AI filters outputs and now and then flags a sick or starving child (error 3030), not always the same one.
+  // Then it paints once more from the soft prompt, the same picture without illness, hunger and grime.
+  let out, soft = false;
   try {
-    const form = new FormData();
-    form.append("prompt", portraitPrompt(L));
-    form.append("width", String(W));
-    form.append("height", String(H));
-    form.append("seed", String(L.seed % 2147483647));
-    const body = new Response(form);
-    out = await env.AI.run(MODEL, { multipart: { body: body.body, contentType: body.headers.get("content-type") } });
+    out = await paint(env, portraitPrompt(L), L.seed);
   } catch (e) {
-    console.log("portrait: model error", key, String((e && e.message) || e).slice(0, 300));
-    return fail(503, "the image model is unavailable");
+    const msg = String((e && e.message) || e);
+    if (/4006|daily free allocation/i.test(msg)) return fail(429, "the account's daily Workers AI allowance is used up");   // free plan: 10,000 neurons a day, shared by every use of the account
+    if (!/3030|flagged/i.test(msg)) { console.log("portrait: model error", key, msg.slice(0, 300)); return fail(503, "the image model is unavailable"); }
+    try { soft = true; out = await paint(env, portraitPrompt(L, true), L.seed); }
+    catch (e2) { console.log("portrait: flagged twice", key, String((e2 && e2.message) || e2).slice(0, 300)); return fail(503, "the image model would not paint this life"); }
   }
   if (!out || typeof out.image !== "string") return fail(503, "the image model returned nothing");
   const bin = atob(out.image), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   const type = sniff(bytes);
   if (!type) return fail(503, "the image model returned something that is not an image");
-  waitUntil(env.PORTRAITS.put(key, bytes, { metadata: { type, day } }));
-  return new Response(bytes, { headers: { ...KEEP, "Content-Type": type, "X-Portrait": "new" } });
+  waitUntil(env.PORTRAITS.put(key, bytes, { metadata: { type, day, soft } }));
+  return new Response(bytes, { headers: { ...KEEP, "Content-Type": type, "X-Portrait": "new", "X-Portrait-Soft": soft ? "1" : "0" } });
+}
+
+async function paint(env, prompt, seed) {
+  const form = new FormData();
+  form.append("prompt", prompt);
+  form.append("width", String(W));
+  form.append("height", String(H));
+  form.append("seed", String(seed % 2147483647));
+  const body = new Response(form);
+  return env.AI.run(MODEL, { multipart: { body: body.body, contentType: body.headers.get("content-type") } });
 }

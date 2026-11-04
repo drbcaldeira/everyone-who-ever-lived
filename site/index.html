@@ -127,11 +127,13 @@ p { margin: 0 0 0.75rem; }
 
 /* ============ SVG: timeline, map, lifespan, histograms ============ */
 .tl svg, .map svg, .lifespan svg, .hist svg { width: 100%; height: auto; display: block; }
-.tl-area { fill: #2A2419; }
-.tl-range { fill: var(--accent); opacity: 0.14; }
+.tl-area { fill: #3B342A; }
+.tl-area--in { fill: #A87F33; }
+.tl-edge { fill: none; stroke: #E8C278; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.tl-bound { stroke: var(--fg-2); stroke-width: 1; stroke-dasharray: 3 3; }
 .tl-axis, .tl-tick { stroke: var(--border-strong); stroke-width: 1; }
 .tl-label { font-family: var(--font-body); font-size: 12px; fill: var(--muted); letter-spacing: 0.04em; }
-.tl-marker { stroke: var(--accent); stroke-width: 2; }
+.tl-marker { stroke: var(--fg); stroke-width: 2; }
 .tl-dot { fill: var(--accent); }
 .tl-you { font-family: var(--font-body); font-size: 12px; font-weight: 600; fill: var(--fg); letter-spacing: 0.1em; text-transform: uppercase; }
 .map-grat { stroke: var(--border); stroke-width: 0.6; fill: none; }
@@ -1984,8 +1986,8 @@ function summaryText(L, url) {
    Bump PORTRAIT_VERSION whenever the prompt or the style changes: it is
    part of the key under which each painted portrait is kept.
    =================================================================== */
-const PORTRAIT_VERSION = 6;
-const PORTRAIT_STYLE = 'Art style: lo-fi anime illustration with a contemporary streetwear-zine attitude. Graphic, slightly exaggerated character design: lanky limbs, big hands and feet, a bold silhouette, an expressive face. Clean ink lines and flat cel shading on the figure; a soft, hazy, painted background with atmospheric perspective. Dramatic low camera angle with wide-angle foreshortening. Warm cinematic sunlight with lens flare and a glowing rim light; muted earthy palette with a few vivid accents; visible grain and print texture. No text, no lettering, no logo, no frame, no border, no vignette.';
+const PORTRAIT_VERSION = 8;
+const PORTRAIT_STYLE = 'Art style: a modern anime key visual with a lo-fi street-culture edge, like a frame from a stylish anime film for adults. Clean thin lineart, flat cel colours with simple two-tone shading and no hatching, a soft blurred painted background, glowing light bloom, lens flare and heavy film grain. Elongated stylized anatomy: figures about nine heads tall, very long legs and arms, a small head, big hands and feet. A bold, dynamic camera with strong perspective and foreshortening. Muted, dusty palette with one or two saturated accents. Faces are specific and unidealised. No text, no lettering, no logo, no frame, no border.';
 function portraitAge(L) { return L.alive ? L.ageNow : L.age; }
 function occForPortrait(occ, r) {
   const s = occ.replace(/\s*\([^)]*\)/g, '');
@@ -1996,42 +1998,117 @@ function occForPortrait(occ, r) {
   const acts = tail.split(/,\s*|\s+or\s+/).map(x => x.trim()).filter(Boolean);
   return role + ', ' + acts[Math.floor(r() * acts.length) % acts.length];
 }
-function portraitPrompt(L) {
+/* Period dress, [men, women], written as what people wore: an image model tends to draw whatever a "no ..." names,
+   which is how a list of forbidden modern things once produced trainers in 1119. Commoners' clothes; the elite and
+   the unfree are adjusted in portraitPrompt. The Americas and Oceania split into native peoples and settlers. */
+const DRESS = {
+  eas: { anc: ['a knee-length wrapped tunic of undyed hemp tied with a cord, hair in a topknot, straw sandals', 'a long wrapped hemp robe tied at the waist, hair in a low knot, straw sandals'],
+         med: ['a coarse hemp jacket crossed right over left and tied with a sash, baggy hemp trousers bound at the shin, a cloth head wrap, straw sandals', 'a crossed hemp jacket, a long pleated hemp skirt, hair pinned up under a cloth, straw sandals'],
+         emod: ['a patched indigo cotton jacket crossed and tied at the side, loose trousers rolled to the knee, a conical bamboo hat, straw sandals', 'a faded indigo cotton jacket and long skirt, hair in a bun held by a wooden pin, straw sandals'],
+         ind: ['a faded indigo cotton work jacket with cloth knot fastenings, loose trousers, cloth shoes, a conical straw hat', 'a side-fastened indigo cotton tunic and loose trousers, hair in a bun, cloth shoes'] },
+  sas: { all: ['a coarse white cotton dhoti wrapped at the waist, a cloth over one shoulder, a head cloth, bare chest, barefoot', 'a faded hand-woven cotton sari wrapped over the chest and shoulder, glass bangles, barefoot'] },
+  sea: { all: ['a wrapped cotton sarong, bare chest, a cloth head wrap, a broad woven palm hat, barefoot', 'a wrapped batik sarong tied over the chest, a loose blouse, hair in a knot, barefoot'] },
+  wca: { anc: ['a fringed wool kilt and a knee-length tunic, a heavy wool cloak, leather sandals, a thick beard', 'a long draped wool dress pinned at the shoulder, a head veil, leather sandals'],
+         all: ['a long coarse wool robe to the shins with a cloth sash, a turban, worn leather sandals', 'a long loose dark dress and a large head scarf, worn leather slippers'] },
+  eur: { anc: ['a belted knee-length wool tunic, a wool cloak pinned at the shoulder, leather foot wraps', 'a long wool tunic-dress with a belt, a wool shawl, braided hair'],
+         med: ['a coarse undyed wool tunic belted with rope, wool hose, a hood, leather turnshoes caked in mud', 'a long wool kirtle, a stained apron, a linen headcloth, leather turnshoes'],
+         emod: ['a grubby linen shirt, a wool waistcoat, breeches and wool stockings, a felt hat, wooden clogs', 'a long wool skirt, a laced bodice, an apron, a linen cap, wooden clogs'],
+         ind: ['a soot-stained wool jacket and waistcoat, a flat cloth cap, heavy hobnailed boots', 'a long dark wool skirt, a shawl, an apron, a headscarf, worn boots'] },
+  naf: { anc: ['a white linen kilt, bare chest, barefoot', 'a plain linen sheath dress, barefoot'],
+         all: ['a long hooded wool djellaba, a head cloth, leather slippers', 'a long loose robe and a head scarf, barefoot'] },
+  ssa: { ind: ['a wrapped trade-cloth and a worn cotton shirt, barefoot', 'a printed trade-cloth wrapper and a head tie, barefoot'],
+         all: ['a cloth of bark-cloth or hand-woven cotton wrapped at the waist, bead necklaces, barefoot', 'a hand-woven cotton wrapper tied above the chest, beads, a head wrap, barefoot'] },
+  nam: { native: ['a deerskin breechcloth and leggings, moccasins, a hide robe', 'a fringed deerskin dress, moccasins, a hide robe'],
+         settler: ['a sweat-stained homespun shirt, wool trousers with braces, a battered felt hat, cracked leather boots', 'a faded calico dress, an apron, a sunbonnet, worn boots'] },
+  lac: { native: ['a cotton loincloth and a cotton mantle knotted at the shoulder, rope sandals', 'a woven wrap skirt and a loose cotton huipil blouse, barefoot'],
+         andes: ['a knee-length alpaca-wool tunic, a striped woven mantle, leather sandals', 'a long wrapped alpaca-wool dress fastened with a metal pin, a woven shawl, sandals'],
+         settler: ['a coarse cotton shirt and trousers, a woven wool poncho, a straw hat, rope sandals', 'a long cotton skirt and blouse, a rebozo shawl, barefoot'] },
+  oce: { native: ['a bark-cloth waist wrap, shell ornaments, barefoot', 'a woven-fibre skirt and a bark-cloth wrap over the chest, barefoot'],
+         aboriginal: ['a possum-skin cloak and a hair-string belt, barefoot', 'a possum-skin cloak wrapped around the body, barefoot'],
+         settler: ['a sun-faded cotton shirt, moleskin trousers, a wide felt hat, worn boots', 'a long cotton dress, an apron, a straw bonnet'] }
+};
+function isNativeLife(L) { return L.forager || L.t < (L.key === 'oce' ? 1788 : 1500) || /Native|nation|Indigenous|Aboriginal|Maori|a people of|unconquered|Polynesia|Melanesia|New Guinea|Maya|Inca|Aztec|Andean|Wari|Chimu/i.test(L.polity); }
+function dressFor(L, sex) {
+  const f = sex === 'f' ? 1 : 0, k = L.key, rich = L.cell.ind.gdp / TODAY.gdp;
+  if (L.forager) {
+    const cold = k === 'eur' || k === 'nam' || k === 'eas' || k === 'wca' || (L.t < -9999 && k !== 'ssa' && k !== 'sea');
+    return cold ? (f ? 'a long tunic, leggings and boots of scraped hide stitched with sinew, a fur hood' : 'a hide tunic, fur-lined leggings, wrapped hide boots and a fur cloak')
+                : (f ? 'a hide wrap tied over the chest, a fibre skirt, shell beads, barefoot' : 'a hide loincloth, a fibre waist cord and a hide cape, barefoot');
+  }
+  if (L.era === 'mid20') return rich > 0.3 ? 'plain, mended working clothes of the 1950s or 1960s, worn leather shoes' : 'plain, mended cotton clothes of the 1950s or 1960s from that place, rubber sandals or bare feet';
+  if (L.era === 'contemp') return rich > 0.9 ? 'ordinary present-day streetwear' : 'cheap, faded present-day clothes from that place, plastic sandals or worn trainers';
+  const d = DRESS[k], g = L.era === 'early' || L.era === 'classical' ? 'anc' : L.era === 'medieval' ? 'med' : L.era === 'earlymod' ? 'emod' : 'ind';
+  let pair;
+  if (d.settler) pair = !isNativeLife(L) ? d.settler : d.andes && /Inca|Andean|Andes|Wari|Chimu|Tiwanaku/i.test(L.polity) ? d.andes : d.aboriginal && /Aboriginal|Australia/i.test(L.polity) ? d.aboriginal : d.native;
+  else pair = d[g] || d.all;
+  return pair[f];
+}
+/* soft: the same picture without illness, hunger and grime, used once when Workers AI's output filter
+   flags the full one (it sometimes does for sick children); the server marks such portraits. */
+function portraitPrompt(L, soft) {
   const r = mulberry32((L.seed ^ 0x7F4A7C15) >>> 0), pickR = arr => arr[Math.floor(r() * arr.length) % arr.length];
   const a = portraitAge(L), y = Math.floor(a), f = L.sex === 'f', modern = L.era === 'mid20' || L.era === 'contemp';
+  const hard = L.cell.e0 < 50 || L.status === 'unfree', dying = !L.alive, cause = L.cause || '';
+  const sick = /fever|diarrh|dysent|lung|pneumon|influenza|tubercul|malaria|smallpox|measles|plague|cholera|typhoid|whooping|diphtheria|scarlet|infection|wasting/i.test(cause);
+  const hungry = /famine|starv|hunger/i.test(cause);
   const when = L.alive ? 'today, in ' + PRESENT_YEAR : 'in ' + yearLabel(L.t + y, true);
   const where = L.polity + ', ' + REG[L.j];
-  let who, doing = '';
-  if (a < 1) who = 'A ' + (L.forager ? 'young hunter-gatherer mother' : 'young mother') + ' cradling her newborn ' + (f ? 'daughter' : 'son') + ', a tiny baby wrapped in cloth';
-  else if (a < 5) who = 'A ' + (f ? 'little girl' : 'little boy') + ' of about ' + Math.max(1, y);
-  else if (a < 13) who = 'A ' + (f ? 'girl' : 'boy') + ' of about ' + y;
-  else if (a < 18) who = 'A teenage ' + (f ? 'girl' : 'boy') + ' of ' + y;
-  else if (a < 30) who = 'A young ' + (f ? 'woman' : 'man') + ' of ' + y;
-  else if (a < 58) who = 'A ' + (f ? 'woman' : 'man') + ' of ' + y;
-  else who = 'An old ' + (f ? 'woman' : 'man') + ' of ' + Math.min(y, 100) + ', grey-haired and lined';
-  if (a >= 1 && a < 5) doing = pickR(['playing in the dust', 'holding a grown-up\'s hand', 'carrying a small bundle', 'sitting in a doorway with a toy', 'chasing a chicken']);
-  else if (a >= 5 && a < 13) doing = modern && r() < 0.5 ? pickR(['walking to school', 'playing with friends after school']) : pickR(['carrying water', 'minding a younger child', 'tending animals', 'gathering firewood', 'running an errand', 'helping with the harvest']);
-  else if (a >= 13) {
-    const work = L.occ === 'another trade' ? null : occForPortrait(L.occ, r);
-    const verb = a >= 70 ? 'resting after a lifetime as ' : 'at work as ';
-    doing = work ? verb + article(work) + ' ' + work : L.forager ? verb + 'a hunter-gatherer' : (a >= 70 ? 'resting after a lifetime at a small trade of the time' : 'at work at a small trade of the time');
-    if (L.status === 'unfree') doing += ', unfree, in rough worn clothes';
-    if (L.status === 'elite') doing += ', dressed in the fine clothes of the elite';
+  let dress = dressFor(L, a < 1 ? 'f' : L.sex);
+  if (a >= 1 && a < 13 && !modern) dress = L.forager ? 'a small hide wrap, barefoot' : 'a dirty, too-big hand-me-down tunic of rough homespun cloth, barefoot';
+  if (L.status === 'elite') dress = 'the finest version of ' + dress + ', in dyed, clean, well-made cloth, with jewellery';
+  if (L.status === 'unfree') dress = 'the most ragged version of ' + dress + ', torn and patched';
+  let who, body = '', doing = '';
+  if (a < 1) {
+    const kid = f ? 'daughter' : 'son', m = Math.max(1, Math.round(a * 12));
+    who = dying && soft ? 'A young mother, wearing ' + dress + ', holds her baby close in the dark, her face heavy with worry and grief'
+        : dying ? 'A young mother, wearing ' + dress + ', holds her ' + (m <= 1 ? 'newborn ' + kid : m + '-month-old ' + kid) + ', who is gravely ill: the baby is limp, pale and too quiet in her arms. Her face is hollow with exhaustion, fear and grief, and she does not look at the viewer'
+                : 'A young mother, wearing ' + dress + ', cradles her newborn ' + kid + ', worn out and tender';
+  } else {
+    const noun = (a < 5 ? (f ? 'little girl' : 'little boy') + ' of about ' + Math.max(1, y) : a < 13 ? (f ? 'girl' : 'boy') + ' of about ' + y : a < 18 ? 'teenage ' + (f ? 'girl' : 'boy') + ' of ' + y
+          : a < 30 ? 'young ' + (f ? 'woman' : 'man') + ' of ' + y : a < 58 ? (f ? 'woman' : 'man') + ' of ' + y : 'old ' + (f ? 'woman' : 'man') + ' of ' + Math.min(y, 100) + ', grey, stooped and deeply lined');
+    who = (/^[aeiou]/.test(noun) ? 'An ' : 'A ') + noun + ', wearing ' + dress;
+    if (dying && a < 15) body = hungry ? 'gaunt from hunger, stick-thin arms, a swollen belly' : sick ? 'thin and small for their age, pale and feverish, with dark rings under the eyes' : 'small for their age';
+    else if (dying && L.causeCat === 'maternal') body = 'heavily pregnant and exhausted';
+    else if (dying && L.causeCat === 'violence') body = 'with an old scar across the face';
+    else if (dying && hungry) body = 'gaunt and hollow-cheeked from hunger';
+    else if (dying && a < 45 && /tubercul|lung|pneumon/i.test(cause)) body = 'thin, with a hollow cough';
+    else if (dying && a < 45 && hard) body = 'worn out beyond their years';
+    if (soft) body = '';
+    if (a < 5) doing = pickR(hard ? ['sitting alone in the dirt by the doorway', 'standing alone in the lane, holding a crust of bread', 'crouching by a puddle', 'curled up on a mat by the wall'] : ['playing on the ground', 'carrying a small toy', 'running with arms out']);
+    else if (a < 13) doing = hard || !modern ? pickR(L.forager ? ['gathering shellfish', 'carrying a bundle of firewood', 'sitting by the fire'] : ['carrying a heavy water jar', 'minding a baby sibling tied to their back', 'herding goats', 'gathering firewood', 'scaring birds from the fields'])
+                                           : pickR(['walking to school with a backpack', 'riding a bicycle', 'playing football in the street']);
+    else {
+      const work = L.occ === 'another trade' ? null : occForPortrait(L.occ, r);
+      const verb = a >= 70 ? 'resting after a lifetime as ' : 'at work as ';
+      doing = work ? verb + article(work) + ' ' + work : L.forager ? verb + 'a hunter-gatherer' : (a >= 70 ? 'resting after a lifetime at a small trade' : 'at work at a small trade of the time');
+    }
   }
   const still = a < 1 || a >= 70;
   const dwell = L.dwelling.split(/,| in a | moved | shared | depending /)[0];
-  const setting = L.forager ? 'Setting: the camp of a small band of hunter-gatherers, ' + dwell + ', in the wild landscape of ' + REG[L.j] + '.'
+  const setting = a < 1 && dying ? 'Setting: inside ' + dwell + ', dark and cramped.'
+    : L.forager ? 'Setting: the camp of a small band of hunter-gatherers, ' + dwell + ', in the wild landscape of ' + REG[L.j] + '.'
     : L.urban ? 'Setting: a street in ' + L.settlement.replace(/^the city of /, '') + '.'
     : 'Setting: ' + dwell + ', in ' + L.settlement + '.';
-  const accuracy = modern ? 'Everyday clothes and surroundings of that time and place.'
-    : L.forager ? 'Dressed in a tunic of hide, fur or woven plant fibre that covers the chest and body, suited to the climate; stone, bone and wooden tools; nothing anachronistic.'
-    : 'Clothing, hairstyle, tools and buildings true to that time and place; modestly dressed, chest covered; nothing anachronistic' + (L.t + y < 1800 ? ': no glass windows, no buttons, no pockets, no zips, no modern fabrics.' : '.');
-  const camera = pickR(['Extreme low worm\'s-eye angle, the figure towering against a bright sky', 'Wide-angle shot from slightly below, one hand reaching toward the camera in strong foreshortening', 'Close three-quarter portrait from the chest up, the face catching the light', still ? 'Full-length figure, seated, seen from a low angle' : 'Full-length figure mid-stride, seen from a low angle']);
-  const light = pickR(['golden-hour sun flaring behind the figure', 'hazy late-afternoon sun with long shadows', 'bright midday sun with deep cool shadows', modern ? 'dusk, warm lamplight from a window on the face against a cool blue sky' : 'dusk, warm firelight on the face against a cool blue sky']);
-  const mood = a < 1 ? 'a tender, tired, proud expression' : pickR(['a confident half-smile', 'an intense, focused look', 'a tired but steady gaze', 'a wide open grin', 'a calm, faraway look']);
   const people = peopleOf(L);
-  return who + (doing ? ', ' + doing : '') + ', ' + when + ', in ' + where + '. ' + (people ? 'The people shown are ' + people + ', like most people born there and then. ' : '')
-    + setting + ' ' + accuracy + ' ' + camera + '; ' + light + '; ' + mood + '. ' + PORTRAIT_STYLE;
+  const grit = soft ? (hard ? 'Plain, worn, dusty clothes.' : '')
+    : L.status === 'elite' ? 'Clean and well fed, unlike the people around them.'
+    : hard && a >= 1 && a < 13 ? 'The child is the main figure and fills most of the frame. Everything is worn and dusty: frayed patched cloth, dirt-streaked skin, dirty bare feet, tangled unwashed hair.'
+    : hard ? 'Everything is worn, dusty and lived-in: frayed and patched cloth, sweat and dirt stains, sun-weathered skin, rough calloused hands, dirty feet, unwashed hair.'
+    : modern ? '' : 'Clothes worn and mended, hands rough from work.';
+  const accuracy = modern ? '' : L.forager ? 'Stone, bone and wooden tools.' : 'Clothing, tools and buildings of that exact time and place; anyone else in the picture, in the background too, is dressed the same way.';
+  const camera = a < 1 ? pickR(['Close shot from slightly above, mother and baby filling the frame', 'Low close shot looking up at the mother against the dark roof'])
+    : pickR(['Extreme low worm\'s-eye angle, the figure towering against the sky', 'High bird\'s-eye angle looking straight down at the figure', 'Close-up from below, the nearest hand huge in the foreground, strongly foreshortened', still ? 'Full-length figure, seated, seen from a low angle' : 'Full-length figure mid-stride, seen from a low angle']);
+  const sad = dying && a < 15;
+  const light = a < 1 && dying ? pickR(['cold grey light from a doorway', 'dim smoky lamplight in a dark room', 'a grey, rainy dawn'])
+    : sad ? pickR(['flat grey overcast light', 'cold blue dusk', 'a dusty, washed-out noon'])
+    : hard ? pickR(['harsh low sun cutting through dust', 'hazy late-afternoon sun with long shadows', 'grey overcast morning light', 'golden-hour backlight with a sun flare'])
+    : pickR(['golden-hour sun flaring behind the figure', 'bright midday sun with deep cool shadows', modern ? 'dusk, warm window light against a cool blue sky' : 'dusk, warm firelight against a cool blue sky', 'hazy late-afternoon sun']);
+  const mood = a < 1 ? '' : sad ? pickR(['a solemn, wary stare', 'a blank, exhausted look', 'eyes too old for the face'])
+    : hard ? pickR(['a stoic, unsmiling face', 'a hard, wary stare', 'exhausted eyes', 'a grim, set jaw', 'a tired, faraway look', 'a brief crooked half-smile with bad teeth'])
+    : pickR(['a confident half-smile', 'an intense, focused look', 'a wide grin', 'a calm, faraway look', 'a cool, bored stare']);
+  return who + (body ? ', ' + body : '') + (doing ? ', ' + doing : '') + ', ' + when + ', in ' + where + '. '
+    + (people ? 'The people shown are ' + people + ', like most people born there and then. ' : '')
+    + (grit ? grit + ' ' : '') + setting + ' ' + (accuracy ? accuracy + ' ' : '') + camera + '; ' + light + (mood ? '; ' + mood : '') + '. ' + PORTRAIT_STYLE;
 }
 /* Who most people born then and there were, so the image model does not default to one look for everyone.
    Left out where the region mixed peoples after contact (the Americas after 1500, Oceania after 1788) and,
@@ -2075,6 +2152,7 @@ function newSeed() { return (Math.random() * 4294967296) >>> 0; }
 
 /* ---- SVG: timeline ---- */
 function X(t) { const bp = PRESENT_YEAR - t + 1; return TL_L + (TL_R - TL_L) * (1 - Math.log10(Math.max(bp, 1)) / LOGMAX); }
+let tlClipN = 0;
 function timelineSVG(markerT, mode, s, showYou) {
   const B = bins(s), [lo, hi] = modeRange(mode);
   let maxD = 0; const rects = [];
@@ -2084,8 +2162,12 @@ function timelineSVG(markerT, mode, s, showYou) {
   for (const [x0, w, d] of rects) { const h = (d / maxD) * (base - top); path += ' L' + x0.toFixed(1) + ' ' + (base - h).toFixed(1) + ' L' + (x0 + w).toFixed(1) + ' ' + (base - h).toFixed(1); }
   path += ' L' + TL_R + ' ' + base + ' Z';
   let out = '<svg viewBox="0 0 ' + TL_W + ' ' + TL_H + '" role="img" aria-label="Births over time on a logarithmic scale, with your birth marked">';
-  out += '<rect class="tl-range" x="' + X(lo).toFixed(1) + '" y="' + top + '" width="' + (X(hi) - X(lo)).toFixed(1) + '" height="' + (base - top) + '"/>';
+  /* the whole curve dim, then the part inside the pool you drew from in gold, with a bright top edge */
+  const cid = 'tlclip' + (++tlClipN), xl = X(lo).toFixed(1), xw = (X(hi) - X(lo)).toFixed(1);
+  out += '<defs><clipPath id="' + cid + '"><rect x="' + xl + '" y="0" width="' + xw + '" height="' + TL_H + '"/></clipPath></defs>';
   out += '<path class="tl-area" d="' + path + '"/>';
+  out += '<g clip-path="url(#' + cid + ')"><path class="tl-area tl-area--in" d="' + path + '"/><path class="tl-edge" d="' + path.replace(/ Z$/, '') + '"/></g>';
+  if (lo > T_MIN || hi < T_MAX) for (const x of [X(lo), X(hi)]) out += '<line class="tl-bound" x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + (top - 4) + '" y2="' + base + '"/>';
   out += '<line class="tl-axis" x1="' + TL_L + '" x2="' + TL_R + '" y1="' + base + '" y2="' + base + '"/>';
   for (const [bp, label] of [[190000, '190,000 years ago'], [10000, '10,000'], [1000, '1,000'], [100, '100'], [10, '10'], [0, 'now']]) {
     const x = X(PRESENT_YEAR - bp), anchor = bp === 190000 ? 'start' : bp === 0 ? 'end' : 'middle';
@@ -2219,7 +2301,7 @@ function renderLife(L, animate) {
   $('lifeName').textContent = L.name ? L.name : (L.t < -3300 ? 'a name no one wrote down' : 'a name in a language that left no record');
   $('lifeTags').innerHTML = tagsFor(L).map(t => '<span class="tag' + (t === 'unfree' ? ' tag--warn' : '') + '">' + esc(t) + '</span>').join('');
   $('lifeTl').innerHTML = timelineSVG(L.t, L.mode, L.s, true);
-  $('tlNote').textContent = 'The curve is births per unit of log-time: its area is the number of people born. The shaded band is the range you drew from. You were born ' + yearsAgo(L.t) + ' years ago.';
+  $('tlNote').textContent = 'The curve is births per unit of log-time: its area is the number of people born. The gold part is the pool you drew from. You were born ' + yearsAgo(L.t) + ' years ago.';
   $('story').innerHTML = storyFor(L).map(p => '<p>' + p + '</p>').join('');
   $('lifespan').innerHTML = lifespanSVG(L);
   $('map').innerHTML = mapSVG(L.j, L.t);
@@ -2333,6 +2415,10 @@ async function fetchPortrait(L, id) {
     if (!r.ok) throw r.status;
     const blob = await r.blob();
     if (portrait.id !== id) return;
+    if (r.headers.get('X-Portrait-Soft') === '1') {
+      const pp = document.querySelector('#portraitCap .portrait__prompt');
+      if (pp) pp.textContent = portraitPrompt(L, true) + ' (The image service refused the full request, which described illness, hunger and grime; this is the softer one it accepted.)';
+    }
     portrait.url = URL.createObjectURL(blob);
     const img = $('portraitImg');
     img.onload = () => { if (portrait.id === id) portraitState('is-ready'); };
