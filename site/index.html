@@ -86,6 +86,35 @@ p { margin: 0 0 0.75rem; }
 .btn--primary { background: var(--accent); color: #14120E; border-color: var(--accent); padding: 14px 26px; font-size: 14px; }
 .btn--primary:hover { background: var(--fg); border-color: var(--fg); color: #14120E; }
 .btn--small { padding: 7px 12px; font-size: 12px; }
+.mode--range { grid-column: 1 / -1; }
+.range { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem 1.25rem; margin-top: 0.3rem; }
+.range__yr { display: flex; gap: 6px; }
+.range .field input { width: 8.5rem; min-width: 0; }
+.range .field select { min-width: 0; }
+.range__presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.3rem; }
+.range__preset { font-family: var(--font-body); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-2); background: transparent; border: 1px solid var(--border-strong); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.range__preset:hover, .range__preset[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); }
+.range__tl { margin-top: 0.2rem; }
+.range__msg.is-error { color: #E0B0B0; }
+
+/* ============ portrait ============ */
+.portrait { margin: 0 0 0.6rem; width: min(360px, 84vw); display: flex; flex-direction: column; gap: 0.55rem; }
+.portrait__frame { position: relative; aspect-ratio: 3 / 4; background: var(--surface); border: 1px solid var(--border-strong); box-shadow: 0 0 0 5px var(--bg), 0 0 0 6px var(--border); overflow: hidden; }
+.portrait__frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.9s ease; }
+.portrait__wait { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.9rem; padding: 1.25rem; transition: opacity 0.6s ease; }
+.portrait__status { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); text-align: center; line-height: 1.5; max-width: 24ch; }
+.portrait.is-loading .seal { animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: 0.4; transform: scale(0.95); } }
+.portrait.is-ready img { opacity: 1; }
+.portrait.is-ready .portrait__wait { opacity: 0; }
+.portrait.is-off .portrait__frame, .portrait.is-failed .portrait__frame { aspect-ratio: auto; border: 0; box-shadow: none; background: none; }
+.portrait.is-off .portrait__wait, .portrait.is-failed .portrait__wait { position: static; padding: 0; gap: 0.6rem; }
+.portrait.is-off .portrait__cap, .portrait.is-failed .portrait__cap { display: none; }
+.portrait.is-failed .portrait__status { font-weight: 400; font-size: 13px; letter-spacing: 0.02em; text-transform: none; max-width: 36ch; }
+.portrait__cap { font-size: 13px; color: var(--muted); line-height: 1.5; text-wrap: pretty; }
+.portrait__cap summary { cursor: pointer; color: var(--fg-2); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 0.35rem; }
+.portrait__prompt { font-family: var(--font-mono); font-size: 11px; color: var(--fg-2); text-align: left; line-height: 1.55; margin: 0.5rem 0 0; }
+.cert__portrait { display: block; width: 200px; height: auto; margin: 0 auto 1rem; border: 1px solid #B8A87E; }
 
 /* ============ reveal ============ */
 .reveal { padding: 2rem 0 3rem; text-align: center; }
@@ -254,7 +283,7 @@ p { margin: 0 0 0.75rem; }
 /* ============ motion ============ */
 .fade { opacity: 0; transform: translateY(6px); animation: fadeUp 0.6s ease-out forwards; }
 @keyframes fadeUp { to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .fade, .rise { animation: none; opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fade, .rise { animation: none; opacity: 1; transform: none; } .portrait.is-loading .seal { animation: none; } }
 
 /* ============ responsive ============ */
 @media (max-width: 760px) {
@@ -305,6 +334,17 @@ p { margin: 0 0 0.75rem; }
         <span class="mode__share" data-share="before"></span>
         <span class="mode__desc">Everyone else, with the same real odds: foragers, peasants, and the occasional townsperson.</span>
       </button>
+      <div class="mode mode--range" role="radio" tabindex="0" data-mode="range" aria-checked="false" id="rangeMode" aria-labelledby="rangeTitle">
+        <span class="mode__title" id="rangeTitle">Pick the years</span>
+        <span class="mode__share" id="rangeShare"></span>
+        <div class="range">
+          <div class="field"><label for="rangeFrom">Born from</label><div class="range__yr"><input type="number" id="rangeFrom" min="1" max="190000" step="1" value="1500" inputmode="numeric"><select id="rangeFromEra" aria-label="Era of the first year"><option>BCE</option><option selected>CE</option></select></div></div>
+          <div class="field"><label for="rangeTo">to</label><div class="range__yr"><input type="number" id="rangeTo" min="1" max="190000" step="1" value="1800" inputmode="numeric"><select id="rangeToEra" aria-label="Era of the last year"><option>BCE</option><option selected>CE</option></select></div></div>
+        </div>
+        <div class="range__presets" id="rangePresets"></div>
+        <div class="tl range__tl" id="rangeTl"></div>
+        <span class="mode__desc range__msg" id="rangeMsg"></span>
+      </div>
     </div>
     <div class="draw-row">
       <button class="btn btn--primary" id="drawBtn" type="button">Draw a life</button>
@@ -323,7 +363,13 @@ p { margin: 0 0 0.75rem; }
   <article class="life" id="life" hidden aria-live="polite">
     <nav class="life__nav"><button class="btn btn--small" id="homeBtn" type="button">&larr; Home</button></nav>
     <header class="life__head">
-      <div class="seal" id="seal" aria-hidden="true"></div>
+      <figure class="portrait" id="portrait">
+        <div class="portrait__frame">
+          <img id="portraitImg" alt="" decoding="async">
+          <div class="portrait__wait"><div class="seal" id="seal" aria-hidden="true"></div><span class="portrait__status" id="portraitStatus" aria-live="polite"></span></div>
+        </div>
+        <figcaption class="portrait__cap" id="portraitCap"></figcaption>
+      </figure>
       <span class="life__eyebrow" id="lifeEyebrow"></span>
       <h2 class="life__headline" id="lifeHeadline"></h2>
       <p class="life__name" id="lifeName"></p>
@@ -429,7 +475,8 @@ p { margin: 0 0 0.75rem; }
           <li>Survival comes from a Gompertz-Makeham life table fitted so that its mean equals the region's life expectancy at birth in that year (Riley 2005, UN), with child mortality derived from life expectancy where no measurement exists. Causes of death are illustrative draws, not reconstructions.</li>
           <li>Names are common attested names of the region and period, drawn as "a name typical of your people"; peoples whose names were never written down are left unnamed. Religion, food and dwellings are typical of the region and era, not of a household.</li>
           <li>Quality-of-life indicators are typical values for a region and era, not for a year. Occupation shares are rough, and women's work is counted as work.</li>
-          <li>Every life is computed in this file; nothing about it is sent anywhere. The site keeps two anonymous totals, visits and lives drawn, and cookieless page-view statistics. Open the console and run <code>AHE.selfCheck()</code> to compare 20,000 draws against the model.</li>
+          <li>The portrait is invented. An image model (FLUX.2 [klein] 4B, run on Cloudflare Workers AI) paints it from the life's year, place, people, sex, age, work and home, in one house style, and it gets clothes, tools and buildings wrong often enough that it should be read as an illustration, never as a reconstruction. The exact request sits under each picture. A life is painted once, the first time anyone draws it, and kept; the site paints at most a set number of new portraits a day, and past that the seal stands in.</li>
+          <li>Every life is computed in this file. To paint its portrait, the page sends the server the life's link (the pool, the birth-rate setting and the seed), and the server recomputes the same life from it; nothing else about the life is sent. The site keeps two anonymous totals, visits and lives drawn, and cookieless page-view statistics. Open the console and run <code>AHE.selfCheck()</code> to compare 20,000 draws against the model.</li>
         </ul>
         <div class="panel__title">Sources</div>
         <ul class="sources" id="sources"></ul>
@@ -440,7 +487,7 @@ p { margin: 0 0 0.75rem; }
 
 <footer class="foot">
   <div class="container foot__inner">
-    <span>A re-imagining of <span class="foot__ref">anyhumanever.com</span>, which draws its lives from a much larger server-side model. This version runs entirely in one file, adds three draw modes, visible odds, quality-of-life indicators, occupations and a hundred-lives dealer, and shows its assumptions.</span>
+    <span>A re-imagining of <span class="foot__ref">anyhumanever.com</span>, which draws its lives from a much larger server-side model. This version computes every life in one file, adds draw modes for any span of years, an imagined portrait of each life, visible odds, quality-of-life indicators, occupations and a hundred-lives dealer, and shows its assumptions.</span>
     <span class="foot__meta" id="footMeta"></span>
     <span class="foot__meta" id="footCount" hidden></span>
   </div>
@@ -1348,8 +1395,26 @@ function buildBins(s) {
 }
 const _BINS = {};
 function bins(s) { s = clampS(s); return _BINS[s] || (_BINS[s] = buildBins(s)); }
-function modeRange(mode) { return mode === 'last100' ? [T_CUT, T_MAX] : mode === 'before' ? [T_MIN, T_CUT] : [T_MIN, T_MAX]; }
-function birthsBetween(s, lo, hi) { let x = 0; for (const B of bins(s)) if (B.a >= lo && B.b <= hi) x += B.births; return x; }
+/* Draw modes: three fixed pools, or any span of years written 'y<first>_<last>' in astronomical
+   years, both ends included ('y1900_1950' = born 1900 to 1950; 'y-499_500' = 500 BCE to 500 CE). */
+function customRange(mode) {
+  const m = /^y(-?\d{1,6})_(-?\d{1,6})$/.exec(String(mode || ''));
+  if (!m) return null;
+  const a = +m[1], b = +m[2];
+  return a >= T_MIN && b <= T_MAX - 1 && a <= b ? [a, b + 1] : null;
+}
+function rangeMode(a, b) { return 'y' + a + '_' + b; }
+/* A life's id is its link after the '#': '2.<mode>.s<0-100>.<seed in hex>'. The portrait server reads the same id. */
+function parseLifeId(id) {
+  const m = /^2\.(all|last100|before|y-?\d{1,6}_-?\d{1,6})\.s(\d{1,3})\.([0-9a-f]{1,8})$/i.exec(String(id || ''));
+  if (!m) return null;
+  let mode = m[1].toLowerCase();
+  if (mode[0] === 'y') { const c = customRange(mode); if (!c) return null; mode = rangeMode(c[0], c[1] - 1); }
+  return { version: 2, mode, s: clampS(+m[2]), seed: parseInt(m[3], 16) >>> 0 };
+}
+function lifeId(L) { return '2.' + L.mode + '.s' + L.s + '.' + L.seed.toString(16).padStart(8, '0'); }
+function modeRange(mode) { return customRange(mode) || (mode === 'last100' ? [T_CUT, T_MAX] : mode === 'before' ? [T_MIN, T_CUT] : [T_MIN, T_MAX]); }
+function birthsBetween(s, lo, hi) { return hi > lo ? birthsBefore(s, hi) - birthsBefore(s, lo) : 0; }
 function birthsBefore(s, t) {
   let x = 0;
   for (const B of bins(s)) {
@@ -1365,6 +1430,15 @@ function totals(s) {
 }
 function sampleYear(s, mode, u, v) {
   const B = bins(s), [lo, hi] = modeRange(mode);
+  if (customRange(mode)) {
+    /* a span of years rarely starts or ends on a bin edge: invert the cumulative births exactly */
+    const Fa = birthsBefore(s, lo), Fb = birthsBefore(s, hi), target = Fa + u * (Fb - Fa);
+    let l = 0, h = B.length - 1;
+    while (l < h) { const m = (l + h) >> 1; if (B[m].cum <= target) l = m + 1; else h = m; }
+    const bin = B[l], k = (target - (l ? B[l - 1].cum : 0)) / (bin.cbr * bin.Pa);
+    const x = Math.abs(bin.r * bin.w) < 1e-9 ? k : Math.log1p(k * bin.r) / bin.r;
+    return Math.max(lo, Math.min(hi - 1, Math.floor(bin.a + x)));
+  }
   const i0 = B.findIndex(x => x.a === lo), i1 = B.findIndex(x => x.b === hi);
   const base = i0 ? B[i0 - 1].cum : 0, target = base + u * (B[i1].cum - base);
   let l = i0, h = i1;
@@ -1904,6 +1978,76 @@ function summaryText(L, url) {
   return lines.join('\n');
 }
 /* ===================================================================
+   Portrait: the prompt for the illustration painted on the server
+   (functions/api/portrait), built only from the life, so the same link
+   always asks for the same picture. The page shows it under the image.
+   Bump PORTRAIT_VERSION whenever the prompt or the style changes: it is
+   part of the key under which each painted portrait is kept.
+   =================================================================== */
+const PORTRAIT_VERSION = 6;
+const PORTRAIT_STYLE = 'Art style: lo-fi anime illustration with a contemporary streetwear-zine attitude. Graphic, slightly exaggerated character design: lanky limbs, big hands and feet, a bold silhouette, an expressive face. Clean ink lines and flat cel shading on the figure; a soft, hazy, painted background with atmospheric perspective. Dramatic low camera angle with wide-angle foreshortening. Warm cinematic sunlight with lens flare and a glowing rim light; muted earthy palette with a few vivid accents; visible grain and print texture. No text, no lettering, no logo, no frame, no border, no vignette.';
+function portraitAge(L) { return L.alive ? L.ageNow : L.age; }
+function occForPortrait(occ, r) {
+  const s = occ.replace(/\s*\([^)]*\)/g, '');
+  const [head, tail] = s.split(':');
+  const alts = head.split(/,\s*|\s+or\s+/).map(x => x.trim()).filter(Boolean);
+  const role = alts.length > 1 ? alts[Math.floor(r() * alts.length) % alts.length] : head.trim();
+  if (!tail) return role;
+  const acts = tail.split(/,\s*|\s+or\s+/).map(x => x.trim()).filter(Boolean);
+  return role + ', ' + acts[Math.floor(r() * acts.length) % acts.length];
+}
+function portraitPrompt(L) {
+  const r = mulberry32((L.seed ^ 0x7F4A7C15) >>> 0), pickR = arr => arr[Math.floor(r() * arr.length) % arr.length];
+  const a = portraitAge(L), y = Math.floor(a), f = L.sex === 'f', modern = L.era === 'mid20' || L.era === 'contemp';
+  const when = L.alive ? 'today, in ' + PRESENT_YEAR : 'in ' + yearLabel(L.t + y, true);
+  const where = L.polity + ', ' + REG[L.j];
+  let who, doing = '';
+  if (a < 1) who = 'A ' + (L.forager ? 'young hunter-gatherer mother' : 'young mother') + ' cradling her newborn ' + (f ? 'daughter' : 'son') + ', a tiny baby wrapped in cloth';
+  else if (a < 5) who = 'A ' + (f ? 'little girl' : 'little boy') + ' of about ' + Math.max(1, y);
+  else if (a < 13) who = 'A ' + (f ? 'girl' : 'boy') + ' of about ' + y;
+  else if (a < 18) who = 'A teenage ' + (f ? 'girl' : 'boy') + ' of ' + y;
+  else if (a < 30) who = 'A young ' + (f ? 'woman' : 'man') + ' of ' + y;
+  else if (a < 58) who = 'A ' + (f ? 'woman' : 'man') + ' of ' + y;
+  else who = 'An old ' + (f ? 'woman' : 'man') + ' of ' + Math.min(y, 100) + ', grey-haired and lined';
+  if (a >= 1 && a < 5) doing = pickR(['playing in the dust', 'holding a grown-up\'s hand', 'carrying a small bundle', 'sitting in a doorway with a toy', 'chasing a chicken']);
+  else if (a >= 5 && a < 13) doing = modern && r() < 0.5 ? pickR(['walking to school', 'playing with friends after school']) : pickR(['carrying water', 'minding a younger child', 'tending animals', 'gathering firewood', 'running an errand', 'helping with the harvest']);
+  else if (a >= 13) {
+    const work = L.occ === 'another trade' ? null : occForPortrait(L.occ, r);
+    const verb = a >= 70 ? 'resting after a lifetime as ' : 'at work as ';
+    doing = work ? verb + article(work) + ' ' + work : L.forager ? verb + 'a hunter-gatherer' : (a >= 70 ? 'resting after a lifetime at a small trade of the time' : 'at work at a small trade of the time');
+    if (L.status === 'unfree') doing += ', unfree, in rough worn clothes';
+    if (L.status === 'elite') doing += ', dressed in the fine clothes of the elite';
+  }
+  const still = a < 1 || a >= 70;
+  const dwell = L.dwelling.split(/,| in a | moved | shared | depending /)[0];
+  const setting = L.forager ? 'Setting: the camp of a small band of hunter-gatherers, ' + dwell + ', in the wild landscape of ' + REG[L.j] + '.'
+    : L.urban ? 'Setting: a street in ' + L.settlement.replace(/^the city of /, '') + '.'
+    : 'Setting: ' + dwell + ', in ' + L.settlement + '.';
+  const accuracy = modern ? 'Everyday clothes and surroundings of that time and place.'
+    : L.forager ? 'Dressed in a tunic of hide, fur or woven plant fibre that covers the chest and body, suited to the climate; stone, bone and wooden tools; nothing anachronistic.'
+    : 'Clothing, hairstyle, tools and buildings true to that time and place; modestly dressed, chest covered; nothing anachronistic' + (L.t + y < 1800 ? ': no glass windows, no buttons, no pockets, no zips, no modern fabrics.' : '.');
+  const camera = pickR(['Extreme low worm\'s-eye angle, the figure towering against a bright sky', 'Wide-angle shot from slightly below, one hand reaching toward the camera in strong foreshortening', 'Close three-quarter portrait from the chest up, the face catching the light', still ? 'Full-length figure, seated, seen from a low angle' : 'Full-length figure mid-stride, seen from a low angle']);
+  const light = pickR(['golden-hour sun flaring behind the figure', 'hazy late-afternoon sun with long shadows', 'bright midday sun with deep cool shadows', modern ? 'dusk, warm lamplight from a window on the face against a cool blue sky' : 'dusk, warm firelight on the face against a cool blue sky']);
+  const mood = a < 1 ? 'a tender, tired, proud expression' : pickR(['a confident half-smile', 'an intense, focused look', 'a tired but steady gaze', 'a wide open grin', 'a calm, faraway look']);
+  const people = peopleOf(L);
+  return who + (doing ? ', ' + doing : '') + ', ' + when + ', in ' + where + '. ' + (people ? 'The people shown are ' + people + ', like most people born there and then. ' : '')
+    + setting + ' ' + accuracy + ' ' + camera + '; ' + light + '; ' + mood + '. ' + PORTRAIT_STYLE;
+}
+/* Who most people born then and there were, so the image model does not default to one look for everyone.
+   Left out where the region mixed peoples after contact (the Americas after 1500, Oceania after 1788) and,
+   outside Africa, before 3000 BCE, where a modern label would mislead. */
+const PEOPLE = { eas: 'East Asian', sas: 'South Asian', sea: 'Southeast Asian', wca: 'West or Central Asian', eur: 'European', naf: 'North African', ssa: 'Black African' };
+function peopleOf(L) {
+  if (L.key === 'ssa') return PEOPLE.ssa;
+  if (PEOPLE[L.key]) return L.t >= -3000 ? PEOPLE[L.key] : null;
+  const native = L.forager || L.t < (L.key === 'oce' ? 1788 : 1500) || /Native|nation|Indigenous|Aboriginal|Maori|a people of|unconquered|Polynesia|Melanesia|New Guinea|Maya|Inca|Aztec|Andean/i.test(L.polity);
+  if (!native) return null;
+  if (L.key === 'nam') return 'Native American';
+  if (L.key === 'lac') return 'Indigenous American';
+  return /Aboriginal|Australia/i.test(L.polity) ? 'Aboriginal Australian' : /Polynesia|Maori|Hawai/i.test(L.polity) ? 'Polynesian' : 'Indigenous Pacific Islander';
+}
+
+/* ===================================================================
    UI: hash state, reveal sequence, rendering, SVG builders (timeline,
    map, lifespan, seal, histograms), dealer, comparison, certificate,
    tally, clipboard.
@@ -1913,14 +2057,15 @@ const state = { mode: 'all', s: 100, seed: null, life: null, animating: false, d
 const TL_W = 1000, TL_H = 110, TL_L = 24, TL_R = 976;
 const LOGMAX = Math.log10(PRESENT_YEAR - T_MIN + 1);
 const MODE_NAME = { all: 'any human ever', last100: 'the last 100 years', before: 'before 1926' };
+function modeName(mode) { const c = customRange(mode); return c ? (c[1] - c[0] === 1 ? 'the year ' + yearLabel(c[0]) : 'the years ' + yearLabel(c[0]) + ' to ' + yearLabel(c[1] - 1)) : MODE_NAME[mode] || MODE_NAME.all; }
 const ERA_NAMES = { prehistory: 'before farming (190,000 to 10,000 BCE)', early: 'the first farming ages (10,000 to 1000 BCE)', classical: 'classical antiquity (1000 BCE to 500 CE)', medieval: 'the medieval world (500 to 1500)', earlymod: 'the early modern world (1500 to 1800)', industrial: 'the industrial age (1800 to 1925)', mid20: 'the mid-twentieth century (1926 to 1975)', contemp: 'the contemporary world (1976 to today)' };
 const ERA_SHORT = { prehistory: 'before farming', early: 'first farming', classical: 'classical', medieval: 'medieval', earlymod: 'early modern', industrial: 'industrial', mid20: '1926-75', contemp: '1976-' };
 
 /* ---- hash state: #2.mode.s100.seed (version 1 links still resolve) ---- */
 function parseHash() {
-  let m = location.hash.match(/^#2\.(all|last100|before)\.s(\d{1,3})\.([0-9a-f]{1,8})$/i);
-  if (m) return { version: 2, mode: m[1], s: clampS(+m[2]), seed: parseInt(m[3], 16) >>> 0 };
-  m = location.hash.match(/^#1\.(all|last100|before)\.(prb|mod)\.([0-9a-f]{1,8})$/i);
+  const v2 = parseLifeId(location.hash.slice(1));
+  if (v2) return v2;
+  const m = location.hash.match(/^#1\.(all|last100|before)\.(prb|mod)\.([0-9a-f]{1,8})$/i);
   if (m) return { version: 1, mode: m[1], s: m[2] === 'prb' ? 100 : 0, seed: parseInt(m[3], 16) >>> 0 };
   return null;
 }
@@ -2058,7 +2203,7 @@ function renderOcc(L) {
 function renderOdds(L) {
   const T = totals(L.s), both = L.eraP * L.regionP, reached = L.alive ? L.ageNow : L.age;
   $('odds').innerHTML =
-    '<div><dt>This era, drawing from ' + MODE_NAME[L.mode] + '</dt><dd>' + oneIn(L.eraP) + '<small>' + esc(ERA_NAMES[L.eraName]) + ' holds ' + pct(L.eraP, 1) + ' of those births</small></dd></div>' +
+    '<div><dt>This era, drawing from ' + modeName(L.mode) + '</dt><dd>' + oneIn(L.eraP) + '<small>' + esc(ERA_NAMES[L.eraName]) + ' holds ' + pct(L.eraP, 1) + ' of those births</small></dd></div>' +
     '<div><dt>This region, in that year</dt><dd>' + oneIn(L.regionP) + '<small>' + esc(REG[L.j]) + ' had ' + pct(L.regionP, 1) + ' of the world\'s births</small></dd></div>' +
     '<div><dt>Era and region together</dt><dd>' + oneIn(both) + '</dd></div>' +
     (L.age < 1 && !L.alive
@@ -2069,7 +2214,7 @@ function renderOdds(L) {
 function renderLife(L, animate) {
   state.life = L;
   $('seal').innerHTML = sealSVG(L.seed, L.name ? L.name.charAt(0).toUpperCase() : '✦');
-  $('lifeEyebrow').textContent = 'Life ' + L.seed.toString(16).padStart(8, '0') + ' · drawn from ' + MODE_NAME[L.mode] + ' · ' + schedLabel(L.s);
+  $('lifeEyebrow').textContent = 'Life ' + L.seed.toString(16).padStart(8, '0') + ' · drawn from ' + modeName(L.mode) + ' · ' + schedLabel(L.s);
   $('lifeHeadline').innerHTML = headlineFor(L);
   $('lifeName').textContent = L.name ? L.name : (L.t < -3300 ? 'a name no one wrote down' : 'a name in a language that left no record');
   $('lifeTags').innerHTML = tagsFor(L).map(t => '<span class="tag' + (t === 'unfree' ? ' tag--warn' : '') + '">' + esc(t) + '</span>').join('');
@@ -2097,23 +2242,106 @@ function goHome() {
 function showHero() {
   $('life').hidden = true; $('reveal').hidden = true; $('hero').hidden = false;
   document.title = 'Everyone Who Ever Lived';
-  document.querySelectorAll('.mode').forEach(m => m.setAttribute('aria-checked', m.dataset.mode === state.mode ? 'true' : 'false'));
+  syncModeUI();
 }
 function renderModes() {
   const T = totals(state.s);
   const share = { all: 'all ' + (T.all / 1000).toFixed(0) + ' billion births', last100: pct(T.last100 / T.all, 0) + ' of all births · about ' + oneIn(T.last100 / T.all).replace('1 in ', '1 life in '), before: pct(T.before / T.all, 0) + ' of all births' };
-  document.querySelectorAll('.mode__share').forEach(el => { el.textContent = share[el.dataset.share]; });
+  document.querySelectorAll('.mode__share[data-share]').forEach(el => { el.textContent = share[el.dataset.share]; });
   $('brandSub').textContent = (T.all / 1000).toFixed(0) + ' billion births. One at a time.';
+  renderRange();
+}
+
+/* ---- pick the years: a fourth pool, any span from 190,000 BCE to today ---- */
+const RANGE_PRESETS = [['Before farming', T_MIN, -9999], ['First farmers', -9999, -999], ['Antiquity', -999, 500], ['Middle Ages', 500, 1500],
+  ['1500 to 1800', 1500, 1800], ['1800s', 1800, 1899], ['1900 to 1950', 1900, 1950], ['Since 1950', 1950, PRESENT_YEAR]];
+const RANGE_HINT = 'Any span from 190,000 BCE to ' + PRESENT_YEAR + '. Inside it, the draw keeps the real odds of every year and place.';
+function yearFromInputs(numId, eraId) {
+  const v = $(numId).value.trim(), y = Number(v);
+  if (!v || !Number.isInteger(y) || y < 1) return null;
+  return $(eraId).value === 'BCE' ? 1 - y : y;
+}
+function setYearInputs(numId, eraId, t) { $(numId).value = t <= 0 ? 1 - t : t; $(eraId).value = t <= 0 ? 'BCE' : 'CE'; }
+function readRange() {
+  const a = yearFromInputs('rangeFrom', 'rangeFromEra'), b = yearFromInputs('rangeTo', 'rangeToEra');
+  if (a === null || b === null) return { error: 'Enter two whole years, each with BCE or CE.' };
+  if (a < T_MIN || b < T_MIN) return { error: 'The earliest year is 190,000 BCE, around the first modern humans.' };
+  if (a > PRESENT_YEAR || b > PRESENT_YEAR) return { error: 'The latest year is ' + PRESENT_YEAR + '.' };
+  if (a > b) return { error: 'The first year has to come before the second.' };
+  return { mode: rangeMode(a, b), a, b };
+}
+function renderRange() {
+  const r = readRange(), msg = $('rangeMsg');
+  document.querySelectorAll('.range__preset').forEach(el => el.setAttribute('aria-pressed', !r.error && +el.dataset.a === r.a && +el.dataset.b === r.b ? 'true' : 'false'));
+  if (r.error) { msg.textContent = r.error; msg.classList.add('is-error'); $('rangeShare').textContent = ''; $('rangeTl').innerHTML = ''; return null; }
+  msg.textContent = RANGE_HINT; msg.classList.remove('is-error');
+  const [lo, hi] = customRange(r.mode), p = birthsBetween(state.s, lo, hi) / totals(state.s).all;
+  $('rangeShare').textContent = (p >= 0.995 ? 'all' : p < 0.001 ? 'under 0.1%' : pct(p, p < 0.1 ? 1 : 0)) + ' of all births' + (p < 0.995 ? ' · about ' + oneIn(p).replace('1 in ', '1 life in ') : '');
+  $('rangeTl').innerHTML = timelineSVG(null, r.mode, state.s, false);
+  return r.mode;
+}
+function markMode(el) { document.querySelectorAll('.mode').forEach(m => m.setAttribute('aria-checked', m === el ? 'true' : 'false')); }
+function rangeChosen() { return $('rangeMode').getAttribute('aria-checked') === 'true'; }
+function chooseRange() { markMode($('rangeMode')); const m = renderRange(); if (m) state.mode = m; }
+function syncModeUI() {
+  const c = customRange(state.mode);
+  if (c) { setYearInputs('rangeFrom', 'rangeFromEra', c[0]); setYearInputs('rangeTo', 'rangeToEra', c[1] - 1); markMode($('rangeMode')); }
+  else markMode(document.querySelector('.mode[data-mode="' + state.mode + '"]'));
+  renderRange();
 }
 function renderSlider() {
   const T = totals(state.s);
   $('slider').value = state.s;
   $('sliderOut').textContent = schedLabel(state.s) + ' · ' + (T.all / 1000).toFixed(0) + ' billion births · ' + pct(T.beforeYear1 / T.all, 0) + ' before year 1 · ' + pct(T.last100 / T.all, 0) + ' in the last 100 years';
   const Tp = totals(100), Tm = totals(0);
-  $('footMeta').textContent = 'Data version ' + AHE_DATA_VERSION + ' · ' + (Tp.all / 1000).toFixed(0) + ' billion births under the PRB rates, ' + (Tm.all / 1000).toFixed(0) + ' under the moderate ones · every life is computed in this file; nothing about it is sent anywhere.';
+  $('footMeta').textContent = 'Data version ' + AHE_DATA_VERSION + ' · ' + (Tp.all / 1000).toFixed(0) + ' billion births under the PRB rates, ' + (Tm.all / 1000).toFixed(0) + ' under the moderate ones · every life is computed in this page; only its link goes to the server, to paint its portrait.';
 }
 function renderSources() {
   $('sources').innerHTML = SOURCE_LINKS.map(s => '<li><strong>' + (s[2] ? '<a href="' + esc(s[2]) + '" target="_blank" rel="noopener">' + esc(s[0]) + '</a>' : esc(s[0])) + '</strong>: ' + esc(s[1]) + '</li>').join('');
+}
+
+/* ---- the portrait: painted on the site's server from the life's link (functions/api/portrait), the first
+   time anyone draws that life, and kept there; off the site (a local copy) the seal stands in for it ---- */
+const PORTRAIT_ON = location.protocol === 'https:' || location.protocol === 'http:';
+const portrait = { timer: null, ctl: null, url: null, id: null };
+function portraitWho(L) {
+  const a = portraitAge(L), f = L.sex === 'f';
+  return a < 1 ? 'a newborn ' + (f ? 'girl' : 'boy') + ' in its mother\'s arms' : a < 13 ? (f ? 'a girl' : 'a boy') + ' of ' + Math.max(1, Math.floor(a)) : (f ? 'a woman' : 'a man') + ' of ' + Math.floor(a);
+}
+function portraitCaption(L) {
+  const a = portraitAge(L), when = L.alive ? 'as you are today, at ' + L.ageNow : a < 1 ? 'as a newborn in your mother\'s arms, the only age you reached' : 'at ' + Math.floor(a) + ', the age you reached';
+  return 'An imagined portrait, ' + when + '. An image model painted it from this life\'s year, place, sex, age, work and home; no one knows what you looked like.'
+    + '<details><summary>What the model was asked</summary><p class="portrait__prompt">' + esc(portraitPrompt(L)) + '</p></details>';
+}
+function portraitState(cls, status) { $('portrait').className = 'portrait ' + cls; $('portraitStatus').textContent = status || ''; }
+function showPortrait(L) {
+  const img = $('portraitImg'), id = lifeId(L);
+  clearTimeout(portrait.timer);
+  if (portrait.ctl) portrait.ctl.abort();
+  if (portrait.url) { URL.revokeObjectURL(portrait.url); portrait.url = null; }
+  portrait.id = id; img.removeAttribute('src'); img.alt = '';
+  if (!PORTRAIT_ON) { portraitState('is-off'); $('portraitCap').innerHTML = ''; return; }
+  portraitState('is-loading', 'Painting this life');
+  $('portraitCap').innerHTML = portraitCaption(L);
+  portrait.timer = setTimeout(() => fetchPortrait(L, id), 250);   // the birth-rate slider redraws on every step: paint only where it stops
+}
+async function fetchPortrait(L, id) {
+  const ctl = portrait.ctl = new AbortController();
+  const slow = setTimeout(() => { if (portrait.id === id && $('portrait').classList.contains('is-loading')) $('portraitStatus').textContent = 'Painting this life. The first time takes ten to twenty seconds'; }, 4000);
+  try {
+    const r = await fetch('api/portrait/' + id, { signal: ctl.signal });
+    if (!r.ok) throw r.status;
+    const blob = await r.blob();
+    if (portrait.id !== id) return;
+    portrait.url = URL.createObjectURL(blob);
+    const img = $('portraitImg');
+    img.onload = () => { if (portrait.id === id) portraitState('is-ready'); };
+    img.alt = 'Imagined portrait of ' + portraitWho(L) + ', ' + yearLabel(L.t, true) + ', ' + L.polity;
+    img.src = portrait.url;
+  } catch (e) {
+    if ((e && e.name === 'AbortError') || portrait.id !== id) return;
+    portraitState('is-failed', e === 429 ? 'No new portraits today: the daily allowance of paintings is used up. Come back tomorrow.' : 'The portrait could not be painted just now.');
+  } finally { clearTimeout(slow); }
 }
 
 /* ---- the reveal ---- */
@@ -2121,6 +2349,7 @@ function easeOut(x) { return 1 - Math.pow(1 - x, 3); }
 let revealFinish = null;
 function runDraw(animate) {
   const L = drawLife(state.seed, state.mode, state.s);
+  showPortrait(L);
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!animate || reduce) { renderLife(L, animate && !reduce); return; }
   state.animating = true;
@@ -2153,13 +2382,18 @@ function runDraw(animate) {
 }
 function drawNew() {
   if (state.animating) return;
+  if (rangeChosen()) {
+    const r = readRange();
+    if (r.error) { if (!$('hero').hidden) { renderRange(); $('rangeFrom').focus(); } return; }
+    state.mode = r.mode;
+  }
   state.seed = newSeed(); setHash(true); runDraw(true); countLives(1);
 }
 function onHashChange() {
   const h = parseHash();
   if (!h) { state.life = null; showHero(); return; }
   state.mode = h.mode; state.s = h.s; state.seed = h.seed;
-  renderModes(); renderSlider();
+  syncModeUI(); renderModes(); renderSlider();
   runDraw(false);
   if (h.version !== 2) { setHash(false); $('actionsMsg').textContent = 'This link was made with an earlier version of the data; the life may differ in its details.'; }
 }
@@ -2192,7 +2426,7 @@ function dealHundred() {
     return '<li><a href="' + h + '"><span class="num">' + String(i + 1).padStart(3, '0') + '</span>' + esc(yearLabel(L.t, true)) + ' · ' + esc(REGSHORT[L.j]) + ' · ' + (L.sex === 'f' ? 'woman' : 'man') + ' · ' + esc(end) + '</a></li>';
   }).join('');
   $('dealOut').hidden = false;
-  $('dealNote').textContent = 'Dealt from ' + MODE_NAME[state.mode] + ' under ' + schedLabel(state.s) + '. Deal again for a new hundred.';
+  $('dealNote').textContent = 'Dealt from ' + modeName(state.mode) + ' under ' + schedLabel(state.s) + '. Deal again for a new hundred.';
 }
 
 /* ---- the comparison ---- */
@@ -2230,7 +2464,7 @@ function showCertificate() {
     [L.alive ? 'Today' : 'Died', L.alive ? 'alive, aged ' + L.ageNow : 'aged ' + (L.age < 1 ? ageWords(L.age) : Math.floor(L.age)) + ', of ' + L.cause + ', ' + yearLabel(Math.floor(L.t + L.age), true)],
     ['Odds', 'era ' + oneIn(L.eraP) + ' · region ' + oneIn(L.regionP) + ' · born after ' + pct(1 - L.bornAfter, 0) + ' of all humans ever']
   ];
-  host.innerHTML = '<div class="cert"><div class="cert__frame"><div class="cert__eyebrow">Everyone Who Ever Lived · one life drawn at random</div><h2 class="cert__title">' + headlineFor(L).replace(/^You were born /, 'Born ') + '</h2><p class="cert__name">' + esc(L.name || 'a life without a recorded name') + '</p><div class="cert__seal">' + sealSVG(L.seed, L.name ? L.name.charAt(0).toUpperCase() : '✦') + '</div><dl class="cert__rows">' + rows.map(r => '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>').join('') + '</dl><div class="cert__foot">Life ' + L.seed.toString(16).padStart(8, '0') + ' · drawn from ' + MODE_NAME[L.mode] + ' under ' + schedLabel(L.s) + '<br>' + esc(location.href.split('#')[0]) + hashFor() + '</div></div></div>' +
+  host.innerHTML = '<div class="cert"><div class="cert__frame"><div class="cert__eyebrow">Everyone Who Ever Lived · one life drawn at random</div><h2 class="cert__title">' + headlineFor(L).replace(/^You were born /, 'Born ') + '</h2><p class="cert__name">' + esc(L.name || 'a life without a recorded name') + '</p>' + (portrait.url && portrait.id === lifeId(L) && $('portrait').classList.contains('is-ready') ? '<img class="cert__portrait" src="' + portrait.url + '" alt="' + esc($('portraitImg').alt) + '">' : '<div class="cert__seal">' + sealSVG(L.seed, L.name ? L.name.charAt(0).toUpperCase() : '✦') + '</div>') + '<dl class="cert__rows">' + rows.map(r => '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>').join('') + '</dl><div class="cert__foot">Life ' + L.seed.toString(16).padStart(8, '0') + ' · drawn from ' + modeName(L.mode) + ' under ' + schedLabel(L.s) + '<br>' + esc(location.href.split('#')[0]) + hashFor() + '</div></div></div>' +
     '<div class="cert__actions"><button class="btn btn--primary" id="printBtn" type="button">Print or save as PDF</button><button class="btn" id="certClose" type="button">Close</button></div>';
   host.hidden = false;
   $('printBtn').addEventListener('click', () => window.print());
@@ -2309,11 +2543,17 @@ function flushLives() {
 
 /* ---- init ---- */
 function init() {
+  $('rangePresets').innerHTML = RANGE_PRESETS.map(p => '<button class="range__preset" type="button" data-a="' + p[1] + '" data-b="' + p[2] + '">' + esc(p[0]) + '</button>').join('');
   $('modes').addEventListener('click', e => {
+    const preset = e.target.closest('.range__preset');
+    if (preset) { setYearInputs('rangeFrom', 'rangeFromEra', +preset.dataset.a); setYearInputs('rangeTo', 'rangeToEra', +preset.dataset.b); chooseRange(); return; }
     const b = e.target.closest('.mode'); if (!b) return;
-    state.mode = b.dataset.mode;
-    document.querySelectorAll('.mode').forEach(m => m.setAttribute('aria-checked', m === b ? 'true' : 'false'));
+    if (b.dataset.mode === 'range') { chooseRange(); return; }
+    state.mode = b.dataset.mode; markMode(b);
   });
+  $('rangeMode').addEventListener('keydown', e => { if (e.target === $('rangeMode') && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); chooseRange(); } });
+  ['rangeFrom', 'rangeFromEra', 'rangeTo', 'rangeToEra'].forEach(id => { $(id).addEventListener('input', chooseRange); $(id).addEventListener('change', chooseRange); });
+  ['rangeFrom', 'rangeTo'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); chooseRange(); drawNew(); } }));
   $('drawBtn').addEventListener('click', drawNew);
   $('againBtn').addEventListener('click', drawNew);
   $('skipBtn').addEventListener('click', () => { if (revealFinish) revealFinish(); });

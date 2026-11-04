@@ -1,5 +1,7 @@
 # Cloudflare Pages project everyone-who-ever-lived (classic Pages, not Workers). The page is static (./site);
-# this file only binds the counter function (functions/api/count.js) to the D1 database ewel-counter.
+# this file binds the functions in functions/api/ to what they use:
+#   count.js          -> D1 ewel-counter (table counter)
+#   portrait/[id].js  -> Workers AI (image model), KV ewel-portraits (painted portraits), D1 ewel-counter (table portrait_days, the daily cap)
 name = "everyone-who-ever-lived"
 pages_build_output_dir = "./site"
 compatibility_date = "2026-10-19"
@@ -8,3 +10,10 @@ compatibility_date = "2026-10-19"
 binding = "DB"
 database_name = "ewel-counter"
 database_id = "6a11acc9-ddd0-4093-b7fa-4ceaf32854c7"
+
+[[kv_namespaces]]
+binding = "PORTRAITS"
+id = "9a338ff9551e439090b7489b4b24d233"
+
+[ai]
+binding = "AI"
