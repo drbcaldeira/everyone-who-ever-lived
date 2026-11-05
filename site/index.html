@@ -2746,6 +2746,19 @@ function flushLives() {
   if (navigator.sendBeacon('api/count', body)) { counter.lives += counter.pending; counter.pending = 0; }
 }
 
+/* ---- the Space / Enter shortcut. It draws a life from anywhere on the page, except while typing in a
+   field and on a control reached with Tab, where the keys keep their own meaning. Until 2026-11-05 it
+   listened only when nothing had focus, and a mouse click on a mode card or any other button left the
+   focus there, so Space just clicked that button again. Whether the focus came from the mouse is
+   tracked here: :focus-visible cannot tell, because Chrome turns it on with the very key press. ---- */
+let focusByPointer = false;
+function shortcutHere(el) {
+  if (!el || el === document.body || el === document.documentElement) return true;
+  if (el.isContentEditable || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return false;
+  if (el.tagName === 'INPUT' && !/^(range|button|submit|checkbox|radio)$/.test(el.type)) return false;
+  return focusByPointer;
+}
+
 /* ---- init ---- */
 function init() {
   $('rangePresets').innerHTML = RANGE_PRESETS.map(p => '<button class="range__preset" type="button" data-a="' + p[1] + '" data-b="' + p[2] + '">' + esc(p[0]) + '</button>').join('');
@@ -2756,7 +2769,7 @@ function init() {
     if (b.dataset.mode === 'range') { chooseRange(); return; }
     state.mode = b.dataset.mode; markMode(b);
   });
-  $('rangeMode').addEventListener('keydown', e => { if (e.target === $('rangeMode') && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); chooseRange(); } });
+  $('rangeMode').addEventListener('keydown', e => { if (e.target === $('rangeMode') && (e.key === ' ' || e.key === 'Enter') && !shortcutHere(e.target)) { e.preventDefault(); chooseRange(); } });
   ['rangeFrom', 'rangeFromEra', 'rangeTo', 'rangeToEra'].forEach(id => { $(id).addEventListener('input', chooseRange); $(id).addEventListener('change', chooseRange); });
   ['rangeFrom', 'rangeTo'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); chooseRange(); drawNew(); } }));
   $('drawBtn').addEventListener('click', drawNew);
@@ -2779,11 +2792,13 @@ function init() {
   $('cmpRegion').innerHTML = REG.map((r, j) => '<option value="' + j + '"' + (j === 8 ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
   $('tallyChip').addEventListener('click', openTally);
   $('tallyHost').addEventListener('click', onTallyClick);
+  document.addEventListener('pointerdown', () => { focusByPointer = true; }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Tab') focusByPointer = false; }, true);
   document.addEventListener('keydown', e => {
     if (!$('tallyHost').hidden) { if (e.key === 'Escape') closeTally(); return; }
-    if (e.target !== document.body || e.altKey || e.ctrlKey || e.metaKey) return;
-    if (e.key === 'Escape' && !$('certHost').hidden) { $('certHost').hidden = true; $('certHost').innerHTML = ''; return; }
-    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (state.animating && revealFinish) revealFinish(); else drawNew(); }
+    if (!$('certHost').hidden) { if (e.key === 'Escape') { $('certHost').hidden = true; $('certHost').innerHTML = ''; } return; }
+    if (e.defaultPrevented || e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if ((e.key === ' ' || e.key === 'Enter') && shortcutHere(e.target)) { e.preventDefault(); if (state.animating && revealFinish) revealFinish(); else drawNew(); }
   });
   window.addEventListener('hashchange', onHashChange);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushLives(); });
