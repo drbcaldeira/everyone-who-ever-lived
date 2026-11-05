@@ -270,6 +270,24 @@ p { margin: 0 0 0.75rem; }
 .cert__rows dd { margin: 0; color: #1C1916; }
 .cert__foot { font-size: 12px; color: #7B6A3F; text-align: center; border-top: 1px solid #D6C9A8; padding-top: 0.7rem; margin-top: 0.5rem; line-height: 1.5; }
 .cert__actions { max-width: 640px; margin: 1rem auto 0; display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+/* ============ your lives: the tally, opened from the chip ============ */
+#tallyHost { position: fixed; inset: 0; z-index: 40; background: rgba(8,8,7,0.92); overflow: auto; padding: 2rem 1rem; }
+.yl { max-width: var(--wide); margin: 0 auto; background: var(--bg); border: 1px solid var(--border-strong); padding: 1.6rem 1.8rem 1.4rem; box-shadow: 0 30px 60px rgba(0,0,0,0.6); }
+.yl__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.yl__title { font-family: var(--font-display); font-size: 36px; font-weight: 600; line-height: 1.1; margin: 0; }
+.yl__lead { font-size: 15px; color: var(--fg-2); margin: 0.5rem 0 0; max-width: 66ch; }
+.yl .stats { margin-top: 1.2rem; }
+.stat__exp { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.h-exp { stroke: var(--fg); stroke-width: 2; }
+.h-legend { font-family: var(--font-body); font-size: 12px; fill: var(--muted); text-anchor: end; }
+.yl__records { list-style: none; margin: 0 0 1.4rem; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 2rem; font-size: 14px; }
+.yl__records li { border-bottom: 1px dotted var(--border); padding: 3px 0; }
+.yl__records b { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.yl__records a, .yl .deal-list a { color: var(--fg); text-decoration: none; }
+.yl__records a:hover { color: var(--accent); }
+.yl__scroll { max-height: 24rem; overflow: auto; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0 0.5rem 0.5rem 0; }
+.yl__scroll .deal-list { margin-top: 0.4rem; }
+.yl__foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem; margin-top: 1.2rem; }
 @media print {
   body > :not(#certHost) { display: none !important; }
   #certHost { display: block !important; position: static; background: #fff; padding: 0; }
@@ -303,6 +321,10 @@ p { margin: 0 0 0.75rem; }
   .cert { padding: 1.4rem 1.2rem; }
   .cert__frame { padding: 1rem; }
   .cert__rows { grid-template-columns: 1fr; gap: 0.1rem 0; }
+  #tallyHost { padding: 0.75rem 0.5rem; }
+  .yl { padding: 1.1rem 1rem 1rem; }
+  .yl__title { font-size: 28px; }
+  .yl__records { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -313,7 +335,7 @@ p { margin: 0 0 0.75rem; }
     <span class="brand__eyebrow">One life at random from everyone who was ever born</span>
     <h1 class="brand__title"><a class="brand__home" id="homeLink" href="./" title="Back to the start">Everyone Who Ever Lived</a></h1>
     <p class="brand__sub" id="brandSub"></p>
-    <button class="chip" id="tallyChip" type="button" title="Lives drawn in this browser. Click to reset." aria-label="Session tally"></button>
+    <button class="chip" id="tallyChip" type="button" title="Lives drawn in this browser. Click to see them all." aria-label="Your lives: open the tally" aria-haspopup="dialog"></button>
   </div>
 </header>
 
@@ -495,6 +517,7 @@ p { margin: 0 0 0.75rem; }
   </div>
 </footer>
 <div id="certHost" hidden></div>
+<div id="tallyHost" role="dialog" aria-modal="true" aria-labelledby="ylTitle" hidden></div>
 <script>
 /* ===================================================================
    ANY HUMAN EVER — data, part 1: population, birth rates, regions,
@@ -2130,7 +2153,7 @@ function peopleOf(L) {
    tally, clipboard.
    =================================================================== */
 const $ = id => document.getElementById(id);
-const state = { mode: 'all', s: 100, seed: null, life: null, animating: false, deal: null };
+const state = { mode: 'all', s: 100, seed: null, life: null, animating: false, deal: null, redating: false };
 const TL_W = 1000, TL_H = 110, TL_L = 24, TL_R = 976;
 const LOGMAX = Math.log10(PRESENT_YEAR - T_MIN + 1);
 const MODE_NAME = { all: 'any human ever', last100: 'the last 100 years', before: 'before 1926' };
@@ -2237,17 +2260,22 @@ function sealSVG(seed, glyph) {
   return out + '</svg>';
 }
 
-/* ---- SVG: histograms for the dealer ---- */
+/* ---- SVG: histograms for the dealer and the tally. opts.exp, when given, holds the count the same
+   pools give on average for each bar, drawn as a short line across it. ---- */
 function histSVG(title, items, opts) {
   opts = opts || {};
-  const n = items.length, W = 600, H = 190, L0 = 8, R0 = W - 8, top = 34, base = 150, gap = 2;
-  const bw = (R0 - L0) / n, mx = Math.max(1, ...items.map(i => i[1]));
+  const n = items.length, W = opts.w || 600, H = 190, L0 = 8, R0 = W - 8, top = 34, base = 150, gap = 2, exp = opts.exp;
+  const bw = (R0 - L0) / n, mx = Math.max(1, ...items.map(i => i[1]), ...(exp || []));
   let out = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(title) + '">';
   out += '<text class="h-title" x="' + L0 + '" y="18">' + esc(title) + '</text>';
+  if (exp) out += '<line class="h-exp" x1="' + (R0 - 150) + '" x2="' + (R0 - 136) + '" y1="14" y2="14"/><text class="h-legend" x="' + R0 + '" y="18">average for these pools</text>';
   items.forEach((it, i) => {
     const h = (it[1] / mx) * (base - top), x = L0 + i * bw + gap / 2, y = base - h;
-    out += '<rect class="h-bar' + (it[2] ? ' h-bar--alt' : '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (bw - gap).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1"><title>' + esc(it[0]) + ': ' + it[1] + '</title></rect>';
-    if (it[1] > 0) out += '<text class="h-val" x="' + (x + (bw - gap) / 2).toFixed(1) + '" y="' + (y - 4).toFixed(1) + '">' + it[1] + '</text>';
+    const e = exp ? exp[i] : null, tip = esc(it[0]) + ': ' + it[1] + (e !== null ? ', average ' + (e < 10 ? e.toFixed(1) : Math.round(e)) : '');
+    const ye = e > 0 ? base - (e / mx) * (base - top) : null;
+    out += '<rect class="h-bar' + (it[2] ? ' h-bar--alt' : '') + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (bw - gap).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1"><title>' + tip + '</title></rect>';
+    if (it[1] > 0) out += '<text class="h-val" x="' + (x + (bw - gap) / 2).toFixed(1) + '" y="' + ((ye !== null && ye <= y && ye > y - 18 ? ye : y) - 4).toFixed(1) + '">' + it[1] + '</text>';   // above the average line when the two would cross
+    if (ye !== null) out += '<line class="h-exp" x1="' + (x + 2).toFixed(1) + '" x2="' + (x + bw - gap - 2).toFixed(1) + '" y1="' + ye.toFixed(1) + '" y2="' + ye.toFixed(1) + '"><title>' + tip + '</title></line>';
     out += '<text class="h-label" x="' + (x + (bw - gap) / 2).toFixed(1) + '" y="' + (base + 16) + '">' + esc(it[0]) + '</text>';
   });
   out += '<line class="h-axis" x1="' + L0 + '" x2="' + R0 + '" y1="' + base + '" y2="' + base + '"/>';
@@ -2312,7 +2340,7 @@ function renderLife(L, animate) {
   const sections = life.querySelectorAll('.life__head, .panel, .story, .actions');
   sections.forEach((el, i) => { el.classList.remove('fade'); if (animate) { void el.offsetWidth; el.style.animationDelay = (i * 110) + 'ms'; el.classList.add('fade'); } });
   document.title = 'Born ' + yearLabel(L.t, true) + ' — Everyone Who Ever Lived';
-  recordTally(L);
+  if (!state.redating) recordTally(L);   // the slider re-dates the same draw; it is not a new life
   if (animate) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 /* Back to the start: drops the life from the URL and shows the draw modes again. */
@@ -2485,6 +2513,12 @@ function onHashChange() {
 }
 
 /* ---- the dealer ---- */
+/* One line per life, shared by the dealer's list and the tally: year, region, sex and how it ended, as a link to the life. */
+function lifeLine(L) {
+  const end = L.alive ? 'alive at ' + L.ageNow : 'died at ' + (L.age < 1 ? ageWords(L.age) : Math.floor(L.age)) + (L.cause ? ', ' + L.cause : '');
+  return esc(yearLabel(L.t, true)) + ' · ' + esc(REGSHORT[L.j]) + ' · ' + (L.sex === 'f' ? 'woman' : 'man') + ' · ' + esc(end);
+}
+function lifeItem(L, num, pad) { return '<li><a href="#' + lifeId(L) + '"><span class="num">' + String(num).padStart(pad, '0') + '</span>' + lifeLine(L) + '</a></li>'; }
 function dealHundred() {
   const lives = batch(100, state.mode, state.s, newSeed());
   state.deal = lives; countLives(lives.length);
@@ -2506,11 +2540,7 @@ function dealHundred() {
   const bands = [['<1', 0, 1], ['1-4', 1, 5], ['5-14', 5, 15], ['15-29', 15, 30], ['30-44', 30, 45], ['45-59', 45, 60], ['60-74', 60, 75], ['75+', 75, 200]];
   $('histAge').innerHTML = histSVG('Age at death (alive today in brown)', bands.map(b => [b[0], dead.filter(L => L.age >= b[1] && L.age < b[2]).length]).concat([['alive', lives.filter(L => L.alive).length, true]]));
   $('histRegion').innerHTML = histSVG('Where they were born', REGSHORT.map((r, j) => [r.replace('Sub-Sah. ', ''), lives.filter(L => L.j === j).length]));
-  $('dealList').innerHTML = lives.map((L, i) => {
-    const h = '#2.' + L.mode + '.s' + L.s + '.' + L.seed.toString(16).padStart(8, '0');
-    const end = L.alive ? 'alive at ' + L.ageNow : 'died at ' + (L.age < 1 ? ageWords(L.age) : Math.floor(L.age)) + (L.cause ? ', ' + L.cause : '');
-    return '<li><a href="' + h + '"><span class="num">' + String(i + 1).padStart(3, '0') + '</span>' + esc(yearLabel(L.t, true)) + ' · ' + esc(REGSHORT[L.j]) + ' · ' + (L.sex === 'f' ? 'woman' : 'man') + ' · ' + esc(end) + '</a></li>';
-  }).join('');
+  $('dealList').innerHTML = lives.map((L, i) => lifeItem(L, i + 1, 3)).join('');
   $('dealOut').hidden = false;
   $('dealNote').textContent = 'Dealt from ' + modeName(state.mode) + ' under ' + schedLabel(state.s) + '. Deal again for a new hundred.';
 }
@@ -2558,17 +2588,19 @@ function showCertificate() {
   host.addEventListener('click', e => { if (e.target === host) { host.hidden = true; host.innerHTML = ''; } });
 }
 
-/* ---- tally ---- */
+/* ---- tally: the lives drawn in this browser, kept in localStorage. The counters cover every life; the
+   list keeps the links of the last TALLY_KEEP, from which the tally panel recomputes each life. ---- */
+const TALLY_KEEP = 1000;
 const TALLY0 = () => ({ n: 0, died5: 0, before: 0, ages: [], unfree: 0, noread: 0, forager: 0, childbirth: 0, alive: 0, hashes: [] });
 function loadTally() { try { const t = JSON.parse(localStorage.getItem('ahe_tally') || 'null'); return t && Array.isArray(t.hashes) ? Object.assign(TALLY0(), t) : TALLY0(); } catch (e) { return TALLY0(); } }
 function saveTally(t) { try { localStorage.setItem('ahe_tally', JSON.stringify(t)); } catch (e) {} }
 function recordTally(L) {
-  const t = loadTally(), h = hashFor();
+  const t = loadTally(), h = '#' + lifeId(L);
   if (t.hashes.indexOf(h) < 0) {
-    t.hashes.push(h); if (t.hashes.length > 50) t.hashes.shift();
+    t.hashes.push(h); if (t.hashes.length > TALLY_KEEP) t.hashes.shift();
     t.n++; if (L.age < 5) t.died5++; if (L.t < T_CUT) t.before++; if (L.status === 'unfree') t.unfree++;
     if ((L.alive ? L.ageNow : L.age) >= 10 && !L.literate) t.noread++; if (L.forager) t.forager++; if (L.causeCat === 'maternal') t.childbirth++; if (L.alive) t.alive++;
-    t.ages.push(+((L.alive ? L.ageNow : L.age).toFixed(1))); if (t.ages.length > 500) t.ages.shift();
+    t.ages.push(+((L.alive ? L.ageNow : L.age).toFixed(1))); if (t.ages.length > TALLY_KEEP) t.ages.shift();
     saveTally(t);
   }
   renderTally();
@@ -2578,7 +2610,94 @@ function renderTally() {
   if (!t.n) { chip.textContent = ''; return; }
   const sorted = t.ages.slice().sort((a, b) => a - b), med = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
   chip.textContent = t.n + (t.n === 1 ? ' life' : ' lives') + ' · ' + pct(t.died5 / t.n, 0) + ' died before 5 · median age ' + Math.round(med) + ' · ' + t.unfree + ' unfree · ' + t.noread + ' never read · ' + t.forager + ' foragers';
-  chip.title = t.n + ' lives drawn in this browser: ' + t.died5 + ' died before five, ' + t.unfree + ' unfree, ' + t.noread + ' never learned to read, ' + t.forager + ' foragers, ' + t.childbirth + ' women dead in childbirth, ' + t.alive + ' alive today, ' + t.before + ' born before 1926. Click to reset.';
+  chip.title = t.n + ' lives drawn in this browser: ' + t.died5 + ' died before five, ' + t.unfree + ' unfree, ' + t.noread + ' never learned to read, ' + t.forager + ' foragers, ' + t.childbirth + ' women dead in childbirth, ' + t.alive + ' alive today, ' + t.before + ' born before 1926. Click to see them all.';
+}
+
+/* ---- the tally panel: histograms, figures and the list of the lives drawn here. Each figure is set
+   against the average of the same pools: for every kept life, k more lives are drawn from its pool and
+   birth-rate setting with fixed seeds, about TALLY_SIMS draws in all, and the counts are divided by k. ---- */
+const TALLY_SIMS = 2400;
+const TALLY_FIGS = [
+  ['died before five', L => L.age < 5],
+  ['median age at death', null],
+  ['enslaved, serf or bonded', L => L.status === 'unfree'],
+  ['never learned to read', L => (L.alive ? L.ageNow : L.age) >= 10 && !L.literate],
+  ['foragers', L => L.forager],
+  ['women dead in childbirth', L => L.causeCat === 'maternal'],
+  ['alive today', L => L.alive],
+  ['born before 1926', L => L.t < T_CUT]
+];
+const AGE_BANDS = [['<1', 0, 1], ['1-4', 1, 5], ['5-14', 5, 15], ['15-29', 15, 30], ['30-44', 30, 45], ['45-59', 45, 60], ['60-74', 60, 75], ['75+', 75, 200]];
+const ERA_KEYS = ['prehistory', 'early', 'classical', 'medieval', 'earlymod', 'industrial', 'mid20', 'contemp'];
+function medianAgeAtDeath(lives) { const a = lives.filter(L => !L.alive).map(L => L.age).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; }
+/* Birth-time bins. Pools that reach back before 10,000 BCE use the eight eras; narrower pools get up to
+   eight equal spans of calendar years (1 BCE is -1, 1 CE is 1), so a draw from 1900-2000 is not two bars. */
+function birthBinner(lives) {
+  const rs = lives.map(L => modeRange(L.mode)), lo = Math.min(...rs.map(r => r[0])), hi = Math.max(...rs.map(r => r[1]));
+  if (lo < -10000) return { title: 'When they were born', labels: ERA_KEYS.map(k => ERA_SHORT[k]), bin: L => ERA_KEYS.indexOf(L.eraName) };
+  const cal = t => t <= 0 ? t - 1 : t, c0 = cal(lo), c1 = cal(hi - 1) + 1;
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500].find(s => (Math.floor((c1 - 1) / s) - Math.floor(c0 / s) + 1) <= 8) || 5000;
+  const first = Math.floor(c0 / step) * step, nb = Math.floor((c1 - 1) / step) - Math.floor(c0 / step) + 1;
+  const lab = c => c < 0 ? fmtInt(-c) + ' BCE' : c === 0 ? '1 CE' : c < 1000 ? c + ' CE' : String(c);
+  return { title: 'When they were born' + (step > 1 ? ' (' + step + '-year spans)' : ''), labels: Array.from({ length: nb }, (_, i) => lab(first + i * step)), bin: L => Math.floor((cal(L.t) - first) / step) };
+}
+function countBins(lives, n, bin) { const c = new Array(n).fill(0); lives.forEach(L => { const i = bin(L); if (i >= 0 && i < n) c[i]++; }); return c; }
+function tallyData(lives) {
+  const k = Math.max(2, Math.round(TALLY_SIMS / lives.length)), rnd = mulberry32(0x7a11 + lives.length), sims = [];
+  lives.forEach(L => { for (let i = 0; i < k; i++) sims.push(drawLife((rnd() * 4294967296) >>> 0, L.mode, L.s)); });
+  const per = c => c / k, B = birthBinner(lives);
+  const deadOf = arr => arr.filter(L => !L.alive);
+  const ageBin = L => L.alive ? -1 : AGE_BANDS.findIndex(b => L.age >= b[1] && L.age < b[2]);
+  return {
+    k, sims: sims.length,
+    figs: TALLY_FIGS.map(([label, f]) => f ? [label, lives.filter(f).length, per(sims.filter(f).length)] : [label, medianAgeAtDeath(lives), medianAgeAtDeath(sims)]),
+    birth: { title: B.title, labels: B.labels, yours: countBins(lives, B.labels.length, B.bin), exp: countBins(sims, B.labels.length, B.bin).map(per) },
+    age: { yours: countBins(deadOf(lives), AGE_BANDS.length, ageBin).concat([lives.filter(L => L.alive).length]), exp: countBins(deadOf(sims), AGE_BANDS.length, ageBin).concat([sims.filter(L => L.alive).length]).map(per) },
+    region: { yours: countBins(lives, REG.length, L => L.j), exp: countBins(sims, REG.length, L => L.j).map(per) }
+  };
+}
+function openTally() {
+  const t = loadTally(); if (!t.n) return;
+  const lives = []; t.hashes.forEach(h => { const p = parseLifeId(h.replace(/^#/, '')); if (p) lives.push(drawLife(p.seed, p.mode, p.s)); });
+  if (!lives.length) return;
+  const d = tallyData(lives), m = lives.length, older = t.n - m;
+  const avg = v => v === null ? '-' : v < 10 ? (Math.round(v * 10) / 10).toString() : String(Math.round(v));
+  const fig = ([label, v, e]) => '<div class="stat"><span class="stat__value">' + (v === null ? '-' : Math.round(v)) + '</span><span class="stat__label">' + esc(label) + '</span><span class="stat__exp">average ' + avg(e) + '</span></div>';
+  const pools = {}; lives.forEach(L => { const k = modeName(L.mode); pools[k] = (pools[k] || 0) + 1; });
+  const ss = Array.from(new Set(lives.map(L => L.s)));
+  const poolTxt = Object.keys(pools).sort((a, b) => pools[b] - pools[a]).map(k => k + (Object.keys(pools).length > 1 ? ' (' + pools[k] + ')' : '')).join(', ');
+  const dead = lives.filter(L => !L.alive), pick = (arr, f) => arr.reduce((a, b) => f(b) < f(a) ? b : a, arr[0]);
+  const recs = m < 3 ? [] : [['Born earliest', pick(lives, L => L.t)], ['Born latest', pick(lives, L => -L.t)], ['Longest life', dead.length ? pick(dead, L => -L.age) : null], ['Shortest life', dead.length ? pick(dead, L => L.age) : null]].filter(r => r[1]);
+  const pad = String(t.n).length, hw = Math.max(600, Math.min(900, window.innerWidth - 64));
+  $('tallyHost').innerHTML = '<div class="yl">' +
+    '<div class="yl__head"><div><div class="label">Drawn in this browser</div><h2 class="yl__title" id="ylTitle">' + (older > 0 ? 'The last ' + fmtInt(m) + ' of your ' + fmtInt(t.n) + ' lives' : 'Your ' + (m === 1 ? 'one life' : fmtInt(m) + ' lives')) + '</h2></div>' +
+    '<button class="btn btn--small" id="ylClose" type="button">Close</button></div>' +
+    '<p class="yl__lead">Drawn from ' + esc(poolTxt) + (ss.length === 1 ? ', under ' + esc(schedLabel(ss[0])) : ', under more than one birth-rate setting') + '. Beside each figure, and as a line on each bar, is what the same pools give on average' + (m < 20 ? '; with this few lives, chance alone moves the bars a long way from the lines' : '') + '.' + (older > 0 ? ' The page keeps the links of the last ' + fmtInt(TALLY_KEEP) + ' lives (until November 2026 it kept only 50), so the older ones are counted on the chip but cannot be shown here.' : '') + '</p>' +
+    '<div class="stats">' + d.figs.map(fig).join('') + '</div>' +
+    '<div class="hists">' +   // one chart per row, drawn at about the width it is shown so the labels keep their size
+      '<div class="hist hist--wide">' + histSVG(d.birth.title, d.birth.labels.map((l, i) => [l, d.birth.yours[i]]), { exp: d.birth.exp, w: hw }) + '</div>' +
+      '<div class="hist hist--wide">' + histSVG('Age at death (alive today in brown)', AGE_BANDS.map((b, i) => [b[0], d.age.yours[i]]).concat([['alive', d.age.yours[AGE_BANDS.length], true]]), { exp: d.age.exp, w: hw }) + '</div>' +
+      '<div class="hist hist--wide">' + histSVG('Where they were born', REGSHORT.map((r, i) => [r.replace('Sub-Sah. ', ''), d.region.yours[i]]), { exp: d.region.exp, w: hw }) + '</div>' +
+    '</div>' +
+    (recs.length ? '<div class="panel__title">Extremes</div><ul class="yl__records">' + recs.map(r => '<li><b>' + r[0] + '</b><a href="#' + lifeId(r[1]) + '">' + lifeLine(r[1]) + '</a></li>').join('') + '</ul>' : '') +
+    '<div class="panel__title">Every life, newest first</div>' +
+    '<div class="yl__scroll"><ol class="deal-list">' + lives.map((L, i) => lifeItem(L, older + i + 1, pad)).reverse().join('') + '</ol></div>' +
+    '<p class="panel__note">The averages come from ' + fmtInt(d.sims) + ' further draws, ' + d.k + ' from the pool and birth-rate setting of each of your lives. Lives you open from a link count too; moving the birth-rate slider re-dates a life without counting it again.</p>' +
+    '<div class="yl__foot"><button class="btn" id="ylErase" type="button">Erase the tally</button><button class="btn btn--primary" id="ylDraw" type="button">Draw another life</button></div>' +
+    '</div>';
+  const host = $('tallyHost'); host.hidden = false; $('ylClose').focus();
+}
+function closeTally() { const host = $('tallyHost'); if (host.hidden) return; host.hidden = true; host.innerHTML = ''; $('tallyChip').focus(); }
+let eraseArmed = 0;
+function onTallyClick(e) {
+  const host = $('tallyHost');
+  if (e.target === host || e.target.closest('#ylClose')) { closeTally(); return; }
+  if (e.target.closest('a[href^="#2."]')) { host.hidden = true; host.innerHTML = ''; return; }   // the link itself opens the life
+  if (e.target.closest('#ylDraw')) { closeTally(); drawNew(); return; }
+  const er = e.target.closest('#ylErase'); if (!er) return;
+  if (Date.now() - eraseArmed < 5000) { eraseArmed = 0; saveTally(TALLY0()); renderTally(); host.hidden = true; host.innerHTML = ''; return; }
+  eraseArmed = Date.now(); er.textContent = 'Click again to erase ' + fmtInt(loadTally().n) + (loadTally().n === 1 ? ' life' : ' lives');
+  setTimeout(() => { if (er.isConnected && Date.now() - eraseArmed >= 5000) er.textContent = 'Erase the tally'; }, 5100);
 }
 
 /* ---- clipboard ---- */
@@ -2652,14 +2771,16 @@ function init() {
   if (navigator.share) { $('shareBtn').hidden = false; $('shareBtn').addEventListener('click', shareLife); }
   $('slider').addEventListener('input', () => {
     state.s = clampS($('slider').value); renderModes(); renderSlider();
-    if (state.life) { setHash(true); runDraw(false); $('actionsMsg').textContent = 'Same seed, other birth rates: the person has been re-dated.'; }
+    if (state.life) { setHash(true); state.redating = true; try { runDraw(false); } finally { state.redating = false; } $('actionsMsg').textContent = 'Same seed, other birth rates: the person has been re-dated.'; }
   });
   $('dealBtn').addEventListener('click', dealHundred);
   $('cmpBtn').addEventListener('click', renderCompare);
   $('cmpYear').addEventListener('keydown', e => { if (e.key === 'Enter') renderCompare(); });
   $('cmpRegion').innerHTML = REG.map((r, j) => '<option value="' + j + '"' + (j === 8 ? ' selected' : '') + '>' + esc(r) + '</option>').join('');
-  $('tallyChip').addEventListener('click', () => { saveTally(TALLY0()); renderTally(); });
+  $('tallyChip').addEventListener('click', openTally);
+  $('tallyHost').addEventListener('click', onTallyClick);
   document.addEventListener('keydown', e => {
+    if (!$('tallyHost').hidden) { if (e.key === 'Escape') closeTally(); return; }
     if (e.target !== document.body || e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === 'Escape' && !$('certHost').hidden) { $('certHost').hidden = true; $('certHost').innerHTML = ''; return; }
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (state.animating && revealFinish) revealFinish(); else drawNew(); }
