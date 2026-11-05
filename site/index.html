@@ -2426,7 +2426,7 @@ async function fetchPortrait(L, id) {
     img.src = portrait.url;
   } catch (e) {
     if ((e && e.name === 'AbortError') || portrait.id !== id) return;
-    portraitState('is-failed', e === 429 ? 'No new portraits today: the daily allowance of paintings is used up. Come back tomorrow.' : 'The portrait could not be painted just now.');
+    portraitState('is-failed', e === 429 ? 'No new portraits right now: the free daily allowance of the image service is used up. Lives painted before still show theirs; try this one again in a few hours.' : 'The portrait could not be painted just now.');
   } finally { clearTimeout(slow); }
 }
 

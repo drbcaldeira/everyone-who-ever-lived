@@ -35,6 +35,8 @@ export async function onRequestGet({ params, env, waitUntil }) {
   const day = new Date().toISOString().slice(0, 10);
   const row = await env.DB.prepare("INSERT INTO portrait_days (day, n) VALUES (?1, 1) ON CONFLICT(day) DO UPDATE SET n = n + 1 RETURNING n").bind(day).first();
   if (row && row.n > DAILY_CAP) return fail(429, "daily limit reached");
+  // the cap counts paintings, not attempts: a failed one gives its slot back
+  const giveBack = () => env.DB.prepare("UPDATE portrait_days SET n = n - 1 WHERE day = ?1 AND n > 0").bind(day).run();
 
   // Workers AI filters outputs and now and then flags a sick or starving child (error 3030), not always the same one.
   // Then it paints once more from the soft prompt, the same picture without illness, hunger and grime.
@@ -43,10 +45,10 @@ export async function onRequestGet({ params, env, waitUntil }) {
     out = await paint(env, portraitPrompt(L), L.seed);
   } catch (e) {
     const msg = String((e && e.message) || e);
-    if (/4006|daily free allocation/i.test(msg)) return fail(429, "the account's daily Workers AI allowance is used up");   // free plan: 10,000 neurons a day, shared by every use of the account
-    if (!/3030|flagged/i.test(msg)) { console.log("portrait: model error", key, msg.slice(0, 300)); return fail(503, "the image model is unavailable"); }
+    if (/4006|daily free allocation/i.test(msg)) { await giveBack(); return fail(429, "the account's Workers AI allowance is used up"); }   // free plan: 10,000 neurons a day, shared by every use of the account
+    if (!/3030|flagged/i.test(msg)) { console.log("portrait: model error", key, msg.slice(0, 300)); await giveBack(); return fail(503, "the image model is unavailable"); }
     try { soft = true; out = await paint(env, portraitPrompt(L, true), L.seed); }
-    catch (e2) { console.log("portrait: flagged twice", key, String((e2 && e2.message) || e2).slice(0, 300)); return fail(503, "the image model would not paint this life"); }
+    catch (e2) { console.log("portrait: flagged twice", key, String((e2 && e2.message) || e2).slice(0, 300)); await giveBack(); return fail(503, "the image model would not paint this life"); }
   }
   if (!out || typeof out.image !== "string") return fail(503, "the image model returned nothing");
   const bin = atob(out.image), bytes = new Uint8Array(bin.length);
